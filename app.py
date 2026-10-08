@@ -139,10 +139,17 @@ def update_marketdata_and_signals():
                             config["sl_price"] = round(new_sl, 2)
                     if ltp <= config["target_price"] or ltp >= config["sl_price"]:
                         execute_order_slice(index_name, "SELL")
-        except Exception as e:
-            print(f"Error updating market data for {index_name}: {str(e)}")
+        except Exception as e:  
+            
+          print(f"Error updating market data for {index_name}: {str(e)}")
 
-# Flask Server Run (Render Port configuration)
+# 🟢 YAHAN SE LEKAR SABSE NICHE TAK PURA PASTE KAREIN:
+
+@app.route('/')
+def home():
+    return "<h1>Upstox Trading Dashboard is Live!</h1><p>Backend calculations are running successfully.</p>"
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+
