@@ -12,7 +12,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "super_secret_algo_key_change_thi
 # =====================================================================
 # 1. सुरक्षा कॉन्फ़िगरेशन (Render Dashboard से लोड होगा)
 # =====================================================================
-DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin123")
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 
 API_KEY = os.getenv("UPSTOX_API_KEY")
 API_SECRET = os.getenv("UPSTOX_API_SECRET")
