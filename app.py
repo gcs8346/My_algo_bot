@@ -1,145 +1,132 @@
 import os
-import time
-import requests
-import pandas as pd
-import numpy as np
+import random
 from flask import Flask, jsonify, render_template_string
-from threading import Thread
 
 app = Flask(__name__)
 
-# --- 1. लाइव डेटा स्ट्रक्चर (डैशबोर्ड के लिए) ---
+# --- 1. आपका 5 दिन का पूरा ट्रेडिंग कॉन्फ़िगरेशन डेटा ---
 MARKET_DATA = {
-    "BANKNIFTY": {"ltp": 0.0, "rsi": 0, "pcr": 1.0, "supertrend": "WAITING", "qty": 15, "target": 40, "sl": 25, "pnl": 0.0, "status": "NO POSITION"},
-    "NIFTY50": {"ltp": 0.0, "rsi": 0, "pcr": 1.0, "supertrend": "WAITING", "qty": 25, "target": 30, "sl": 15, "pnl": 0.0, "status": "NO POSITION"},
-    "SENSEX": {"ltp": 0.0, "rsi": 0, "pcr": 1.0, "supertrend": "WAITING", "qty": 10, "target": 120, "sl": 60, "pnl": 0.0, "status": "NO POSITION"}
+    "BANKNIFTY": {
+        "ltp": 54750.00, "rsi": 58, "pcr": 1.15, "supertrend": "BULLISH", 
+        "qty": 15, "target": 40, "sl": 25, "pnl": 0.0, "status": "NO POSITION", "entry_price": 0.0
+    },
+    "NIFTY50": {
+        "ltp": 22506.45, "rsi": 62, "pcr": 1.05, "supertrend": "BULLISH", 
+        "qty": 25, "target": 30, "sl": 15, "pnl": 0.0, "status": "NO POSITION", "entry_price": 0.0
+    },
+    "SENSEX": {
+        "ltp": 72362.73, "rsi": 55, "pcr": 0.98, "supertrend": "BULLISH", 
+        "qty": 10, "target": 120, "sl": 60, "pnl": 0.0, "status": "NO POSITION", "entry_price": 0.0
+    }
 }
 
-# --- 2. सुपरट्रेंड कैलकुलेटर लॉजिक (A to Z) ---
-def calculate_supertrend(df, period=7, multiplier=3):
-    """ऐतिहासिक कैंडल डेटा के आधार पर सटीक सुपरट्रेंड कैलकुलेट करने का फॉर्मूला"""
-    high = df['high']
-    low = df['low']
-    close = df['close']
-    
-    # Average True Range (ATR) गणना
-    tr1 = pd.DataFrame(high - low)
-    tr2 = pd.DataFrame(abs(high - close.shift(1)))
-    tr3 = pd.DataFrame(abs(low - close.shift(1)))
-    frames = [tr1, tr2, tr3]
-    tr = pd.concat(frames, axis=1, join='inner').max(axis=1)
-    atr = tr.ewm(alpha=1/period, adjust=False).mean()
-    
-    # बेसिक बैंड्स
-    hl2 = (high + low) / 2
-    final_upperband = hl2 + (multiplier * atr)
-    final_lowerband = hl2 - (multiplier * atr)
-    
-    # फाइनल बैंड्स और ट्रेंड डिसीजन
-    supertrend = [True] * len(df)
-    for i in range(1, len(df)):
-        if close[i] > final_upperband[i-1]:
-            supertrend[i] = True
-        elif close[i] < final_lowerband[i-1]:
-            supertrend[i] = False
-        else:
-            supertrend[i] = supertrend[i-1]
-            if supertrend[i] and final_lowerband[i] < final_lowerband[i-1]:
-                final_lowerband[i] = final_lowerband[i-1]
-            if not supertrend[i] and final_upperband[i] > final_upperband[i-1]:
-                final_upperband[i] = final_upperband[i-1]
-                
-    return "BULLISH" if supertrend[-1] else "BEARISH"
-
-# --- 3. अपस्टॉक्स लाइव फ़ीड थ्रेड (Background Data Fetcher) ---
-def upstox_live_stream_worker():
-    """यह बैकग्राउंड थ्रेड हर 2 सेकंड में अपस्टॉक्स टोकन के जरिए डेटा अपडेट करेगा"""
-    # यहाँ अपना अपस्टॉक्स एक्सेस टोकन डालें
-    ACCESS_TOKEN = os.environ.get("UPSTOX_ACCESS_TOKEN", "YOUR_ACCESS_TOKEN")
-    
-    while True:
-        try:
-            # ध्यान दें: यह मॉक डेटा API फेल होने पर डैशबोर्ड को चालू रखने के लिए है
-            # असली कनेक्शन के लिए Upstox v2 API Endpoint का उपयोग करें
-            for index in MARKET_DATA.keys():
-                # रैंडम प्राइस मूवमेंट (लाइव टेस्टिंग के लिए)
-                base_prices = {"BANKNIFTY": 54750, "NIFTY50": 22506, "SENSEX": 72362}
-                current_ltp = MARKET_DATA[index]["ltp"] if MARKET_DATA[index]["ltp"] > 0 else base_prices[index]
-                
-                # लाइव सिमुलेशन
-                MARKET_DATA[index]["ltp"] = round(current_ltp + np.random.uniform(-10, 10), 2)
-                MARKET_DATA[index]["rsi"] = np.random.randint(40, 70)
-                MARKET_DATA[index]["supertrend"] = "BULLISH" if MARKET_DATA[index]["rsi"] > 50 else "BEARISH"
-                
-                # ट्रेड रिस्क और स्टॉप लॉस ट्रैकिंग लॉजिक
-                if MARKET_DATA[index]["status"] == "IN POSITION":
-                    MARKET_DATA[index]["pnl"] = round(np.random.uniform(-500, 1000), 2)
+# --- 2. रीयल-टाइम कैलकुलेशन इंजन (A to Z लाइव सिग्नल्स) ---
+def update_live_market_engine():
+    for index, data in MARKET_DATA.items():
+        # भाव में लाइव उतार-चढ़ाव (Live Feed Simulation)
+        change = random.uniform(-12, 12) if index != "NIFTY50" else random.uniform(-4, 4)
+        data["ltp"] = round(data["ltp"] + change, 2)
+        data["rsi"] = random.randint(40, 75)
+        
+        # सुपरट्रेंड कंडीशन (RSI के आधार पर सिमुलेटेड)
+        data["supertrend"] = "BULLISH" if data["rsi"] >= 50 else "BEARISH"
+        
+        # स्टॉप लॉस और टारगेट चेकिंग लॉजिक
+        if data["status"] == "IN POSITION":
+            points_gained = data["ltp"] - data["entry_price"]
+            data["pnl"] = round(points_gained * data["qty"], 2)
             
-            time.sleep(2) # हर 2 सेकंड में रीफ्रेश
-        except Exception as e:
-            print(f"API Error: {e}")
-            time.sleep(5)
+            # क्या स्टॉप लॉस हिट हुआ?
+            if points_gained <= -data["sl"]:
+                data["status"] = "SL HIT 🔴"
+                data["pnl"] = round(-data["sl"] * data["qty"], 2)
+            # क्या टारगेट अचीव हुआ?
+            elif points_gained >= data["target"]:
+                data["status"] = "TARGET ACHIEVED 🟢"
+                data["pnl"] = round(data["target"] * data["qty"], 2)
+        else:
+            # नई पोजीशन ट्रिगर करने का लॉजिक
+            if random.random() < 0.15 and not ("HIT" in data["status"] or "ACHIEVED" in data["status"]):
+                data["status"] = "IN POSITION"
+                data["entry_price"] = data["ltp"]
 
-# बैकग्राउंड थ्रेड चालू करें ताकि सर्वर क्रैश न हो
-Thread(target=upstox_live_stream_worker, daemon=True).start()
-
-# --- 4. FLASK ROUTERS ---
 @app.route('/api/live-data')
-def live_data():
+def live_data_endpoint():
+    update_live_market_engine()
     return jsonify(MARKET_DATA)
 
 @app.route('/')
 def home():
-    return """<!DOCTYPE html>
-<html lang="hi">
-<head>
-    <meta charset="UTF-8">
-    <title>Upstox Supertrend Auto-Terminal</title>
-    <style>
-        body { font-family: sans-serif; background-color: #0b0f19; color: #e2e8f0; padding: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #334155; }
-        .heading { font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #475569; padding-bottom: 5px; }
-        .bullish { color: #22c55e; font-weight: bold; }
-        .bearish { color: #ef4444; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <h2>📊 Upstox Super-Trend Live Engine</h2>
-    <div class="grid">
-        {% for index in ['BANKNIFTY', 'NIFTY50', 'SENSEX'] %}
-        <div class="card">
-            <div class="heading">{{ index }} <span style="font-size:10px; float:right;" id="status-{{ index }}">NO POSITION</span></div>
-            <p>LTP: <span id="ltp-{{ index }}">₹0.00</span></p>
-            <p>Supertrend: <span id="trend-{{ index }}">WAITING</span></p>
-            <p>RSI: <span id="rsi-{{ index }}">0</span></p>
-            <p>Rules: <span id="rules-{{ index }}">Loading...</span></p>
-            <h3>PnL: <span id="pnl-{{ index }}">₹0.00</span></h3>
+    # यहाँ Jinja2 टेम्पलेट का इस्तेमाल किया गया है ताकि {% for %} सही से रेंडर हो
+    html_layout = """
+    <!DOCTYPE html>
+    <html lang="hi">
+    <head>
+        <meta charset="UTF-8">
+        <title>Upstox Super-Trend Live Engine</title>
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0b0f19; color: #e2e8f0; margin: 0; padding: 20px; }
+            h2 { text-align: center; color: #38bdf8; font-size: 2rem; margin-bottom: 25px; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+            .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+            .heading { font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #475569; padding-bottom: 8px; display: flex; justify-content: space-between; }
+            .status-badge { font-size: 0.85rem; background: #475569; padding: 3px 8px; border-radius: 4px; }
+            .data-row { display: flex; justify-content: space-between; margin: 12px 0; font-size: 1.05rem; }
+            .bullish { color: #22c55e; font-weight: bold; }
+            .bearish { color: #ef4444; font-weight: bold; }
+            .pnl-style { font-size: 1.3rem; font-weight: bold; text-align: center; background: #111827; padding: 10px; border-radius: 6px; margin-top: 15px; }
+            footer { text-align: center; margin-top: 4px; color: #64748b; font-size: 0.85rem; }
+        </style>
+    </head>
+    <body>
+        <h2>📊 Upstox Super-Trend Live Engine</h2>
+        <div class="grid">
+            {% for index in ['BANKNIFTY', 'NIFTY50', 'SENSEX'] %}
+            <div class="card">
+                <div class="heading">{{ index }} <span class="status-badge" id="status-{{ index }}">NO POSITION</span></div>
+                <div class="data-row"><span>LTP (लाइव भाव):</span> <span id="ltp-{{ index }}">₹0.00</span></div>
+                <div class="data-row"><span>Supertrend:</span> <span id="trend-{{ index }}">WAITING</span></div>
+                <div class="data-row"><span>RSI (1 Min):</span> <span id="rsi-{{ index }}">0</span></div>
+                <div class="data-row"><span>Rules (Qty|T|SL):</span> <span id="rules-{{ index }}">Loading...</span></div>
+                <div class="pnl-style">PnL: <span id="pnl-{{ index }}">₹0.00</span></div>
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    <script>
-        async function updateDashboard() {
-            const res = await fetch('/api/live-data');
-            const data = await res.json();
-            for(let key in data) {
-                document.getElementById(`ltp-${key}`).innerText = '₹' + data[key].ltp;
-                document.getElementById(`rsi-${key}`).innerText = data[key].rsi;
-                
-                let trendEl = document.getElementById(`trend-${key}`);
-                trendEl.innerText = data[key].supertrend;
-                trendEl.className = data[key].supertrend === 'BULLISH' ? 'bullish' : 'bearish';
-                
-                document.getElementById(`rules-${key}`).innerText = `${data[key].qty} | T: ${data[key].target} | SL: ${data[key].sl}`;
-                document.getElementById(`pnl-${key}`).innerText = '₹' + data[key].pnl;
+        <footer>Data refreshes automatically every 2 seconds</footer>
+
+        <script>
+            async function updateDashboard() {
+                try {
+                    const res = await fetch('/api/live-data');
+                    const data = await res.json();
+                    for(let key in data) {
+                        document.getElementById(`ltp-${key}`).innerText = '₹' + data[key].ltp;
+                        document.getElementById(`rsi-${key}`).innerText = data[key].rsi;
+                        document.getElementById(`status-${key}`).innerText = data[key].status;
+                        
+                        let trendEl = document.getElementById(`trend-${key}`);
+                        trendEl.innerText = data[key].supertrend;
+                        trendEl.className = data[key].supertrend === 'BULLISH' ? 'bullish' : 'bearish';
+                        
+                        document.getElementById(`rules-${key}`).innerText = `${data[key].qty} | T: ${data[key].target} | SL: ${data[key].sl}`;
+                        
+                        let pnlEl = document.getElementById(`pnl-${key}`);
+                        pnlEl.innerText = '₹' + data[key].pnl;
+                        if(data[key].pnl > 0) pnlEl.style.color = '#22c55e';
+                        else if(data[key].pnl < 0) pnlEl.style.color = '#ef4444';
+                        else pnlEl.style.color = '#e2e8f0';
+                    }
+                } catch (e) { console.error("Error refreshing dashboard:", e); }
             }
-        }
-        setInterval(updateDashboard, 2000);
-        updateDashboard();
-    </script>
-</body>
-</html>"""
+            setInterval(updateDashboard, 2000);
+            updateDashboard();
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_layout)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+            
