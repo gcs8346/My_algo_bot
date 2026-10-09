@@ -178,3 +178,24 @@
             .then(res => {
                 if (res.ok) {
                     alert(`Manual ${actionType} Order Sent for ${index}!`);
+                    <!-- फाइल में सबसे नीचे इसे पेस्ट कर दें -->
+<div class="market-header" style="background: #1e1e1e; color: #fff; padding: 15px; text-align: center; font-family: Arial, sans-serif; border-bottom: 2px solid #333; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999;">
+    <div class="live-time" style="font-size: 18px; margin-bottom: 8px;">
+        🕒 लाइव समय: <span id="current-time" style="font-weight: bold; color: #00ff88;">00:00:00 AM</span>
+    </div>
+    <div class="index-status" style="font-size: 16px; word-spacing: 5px;">
+        <span>NIFTY 50: <strong id="nifty-spot" style="color: #ff3333;">₹0.00</strong></span> | 
+        <span>BANKNIFTY: <strong id="banknifty-spot" style="color: #00ff88;">₹0.00</strong></span>
+    </div>
+</div>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    document.getElementById('current-time').textContent = timeString;
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+    
