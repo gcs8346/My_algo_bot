@@ -145,7 +145,14 @@ def update_marketdata_and_signals():
 # =====================================================================
 # 3. लाइव डैशबोर्ड रूट्स (Routes)
 # =====================================================================
-
+# 🟢 इसे `@app.route('/')` के ठीक ऊपर पेस्ट करें
+@app.route('/login')
+def login():
+    api_key = "YOUR_UPSTOX_API_KEY" # यहाँ अपनी अपस्टॉक्स एपीआई की डालें
+    redirect_uri = "https://onrender.com"
+    upstox_login_url = f"https://upstox.com{api_key}&redirect_uri={redirect_uri}&response_type=code"
+    return redirect(upstox_login_url)
+    
 @app.route('/')
 def home():
     # यह मुख्य डैशबोर्ड का सुंदर फ्रंट-एंड पेज लोड करेगा
