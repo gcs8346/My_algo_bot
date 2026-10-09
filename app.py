@@ -5,9 +5,8 @@ from flask import Flask, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# --- 1. टोकन और इंस्ट्रूमेंट कीज़ (Upstox Official v2) ---
-# यहाँ अपना टोकन डालें या Render Env में UPSTOX_ACCESS_TOKEN नाम से सेव करें
-UPSTOX_ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI4Q0JSR0giLCJqdGkiOiI2YWM4ODdlYjUwYWUzMTc0OTU5MGZmNTMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzkxNTI2ODkxLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3OTE1ODMyMDB9.l6G9mjmDS802X38WqPIs3b40sJx2C5IZlyXvRwIM-jk"
+# 📌 यहाँ अपना नया जनरेट किया हुआ टोकन पेस्ट करें (इनवर्टेड कोट्स के अंदर)
+UPSTOX_ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI4Q0JSR0giLCJqdGkiOiI2YWMzZGU0Nzc3YjdjMTI5OTk5MDNlYmUiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzkxMjIxMzE5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjI3NzM2MDB9.vyB_Fo2XKKKrKamO5g68C48f6WG1j4Hq302Auj65pCw"
 
 TRADING_RULES = {
     "BANKNIFTY": {"qty": 15, "target": 40, "sl": 25, "instrument_key": "NSE_INDEX|Nifty Bank", "base": 54720.0},
@@ -15,7 +14,6 @@ TRADING_RULES = {
     "SENSEX": {"qty": 10, "target": 120, "sl": 60, "instrument_key": "BSE_INDEX|SENSEX", "base": 72496.0}
 }
 
-# टर्मिनल की आंतरिक स्थिति (पोजीशन मैनेजमेंट के लिए)
 POSITION_STATUS = {
     "BANKNIFTY": {"status": "IN POSITION 🟢", "entry": 54700.0, "pnl": 0.0},
     "NIFTY50": {"status": "IN POSITION 🟢", "entry": 22490.0, "pnl": 0.0},
@@ -25,51 +23,45 @@ POSITION_STATUS = {
 API_DEBUG_LOG = "System Checking..."
 
 def fetch_real_market_price(instrument_key, base_fallback):
-    """Upstox API से लाइव भाव खींचेगा, फेल होने पर लाइव सिमुलेशन ऑन करेगा ताकि डैशबोर्ड चालू रहे"""
     global API_DEBUG_LOG
-    token = UPSTOX_ACCESS_TOKEN if UPSTOX_ACCESS_TOKEN != "YOUR_NEW_GENERATED_TOKEN" else os.environ.get("UPSTOX_ACCESS_TOKEN", "")
+    token = UPSTOX_ACCESS_TOKEN if UPSTOX_ACCESS_TOKEN != "Y" else os.environ.get("UPSTOX_ACCESS_TOKEN", "")
     
-    if token and token != "":
-        url = f"https://upstox.com{instrument_key}"
+    if token and token.strip() != "":
+        # यूआरएल एरर को ठीक करने के लिए क्लीन पैरामीटर पासिंग मैकेनिज्म
+        url = "https://upstox.com"
+        params = {'instrument_key': instrument_key}
         headers = {'Accept': 'application/json', 'Authorization': f'Bearer {token}'}
         try:
-            response = requests.get(url, headers=headers, timeout=3)
+            # params का उपयोग करने से यूआरएल कभी गलत नहीं जुड़ेगा
+            response = requests.get(url, headers=headers, params=params, timeout=3)
             res_data = response.json()
             if response.status_code == 200 and "data" in res_data and instrument_key in res_data["data"]:
                 API_DEBUG_LOG = "API Status: 100% Connected & Live ⚡"
                 return float(res_data["data"][instrument_key]["last_price"])
             else:
-                API_DEBUG_LOG = f"Upstox Error: {res_data.get('errors', [{'message': 'Invalid Token Structure'}])[0]['message']}"
+                error_msg = res_data.get('errors', [{'message': 'Invalid Response'}])[0]['message']
+                API_DEBUG_LOG = f"Upstox Alert: {error_msg}"
         except Exception as e:
             API_DEBUG_LOG = f"Connection Alert: {str(e)}"
             
-    # --- लाइव डेटा सिमुलेशन बैकअप ---
-    # अगर API फेल भी हो जाए, तो डैशबोर्ड हैंग नहीं होगा, यह लाइव मार्केट की तरह टिक-टिक करेगा
-    rand_move = random.uniform(-8.0, 8.0) if "Nifty 50" not in instrument_key else random.uniform(-2.0, 2.0)
+    # लाइव सिमुलेशन मोड (अगर API फेल हो तो बैकअप चालू रहेगा)
+    rand_move = random.uniform(-6.0, 6.0) if "Nifty 50" not in instrument_key else random.uniform(-1.5, 1.5)
     return round(base_fallback + rand_move, 2)
 
 @app.route('/api/live-data')
 def live_data_endpoint():
     live_response_data = {}
-    
     for index, rules in TRADING_RULES.items():
-        # भाव को लाइव अपडेट करें (या तो API से या सिमुलेटर से)
         ltp = fetch_real_market_price(rules["instrument_key"], rules["base"])
-        # अगली टिक के लिए बेस वैल्यू को अपडेट करें ताकि निरंतरता बनी रहे
         rules["base"] = ltp
         
-        # RSI और डायनामिक सुपरट्रेंड
-        rsi = random.randint(48, 72)
+        rsi = random.randint(50, 70)
         supertrend = "BULLISH" if rsi >= 52 else "BEARISH"
         
-        # लाइव PnL और ट्रेलिंग स्टॉप लॉस कैलकुलेशन लॉजिक (A to Z)
         pos = POSITION_STATUS[index]
         points_diff = ltp - pos["entry"]
-        
-        # वास्तविक समय में लाइव प्रॉफिट/लॉस की गणना
         pos["pnl"] = round(points_diff * rules["qty"], 2)
         
-        # अगर लाइव भाव आपके SL या Target को क्रॉस करता है, तो अलर्ट मोड
         if points_diff <= -rules["sl"]:
             pos["status"] = "SL BREACHED 🔴"
         elif points_diff >= rules["target"]:
@@ -106,14 +98,13 @@ def home():
             .card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
             .heading { font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #475569; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
             .status-badge { font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; font-weight: bold; background: #475569; }
-            .data-row { display: flex; justify-content: space-between; margin: 14px 0; font-size: 1.1rem; border-bottom: 1px solid #1e293b; padding-bottom: 5px; }
+            .data-row { display: flex; justify-content: space-between; margin: 14px 0; font-size: 1.1rem; border-bottom: 1px solid #1e1b4b; padding-bottom: 5px; }
             .pnl-box { font-size: 1.4rem; font-weight: bold; text-align: center; background: #0f172a; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #1e293b; }
-            footer { text-align: center; margin-top: 30px; color: #64748b; font-size: 0.85rem; }
         </style>
     </head>
     <body>
         <h2>📊 Upstox Super-Trend Engine (A to Z Live)</h2>
-        <div class="debug-bar" id="sys-log">System Checking...</div>
+        <div class="debug-bar" id="sys-log">Connecting to Feed...</div>
         
         <div class="grid">
             {% for index in ['BANKNIFTY', 'NIFTY50', 'SENSEX'] %}
@@ -170,4 +161,3 @@ def home():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
-
