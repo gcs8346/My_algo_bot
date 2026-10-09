@@ -136,15 +136,12 @@ def update_marketdata_and_signals():
             print(f"Error updating market data for {index_name}: {str(e)}")
 
 # =====================================================================
-# 3. लाइव डैशबोर्ड रूट्स (Routes) - शुद्ध लॉगिन और री-डायरेक्ट पाथ
+# 3. लाइव डैशबोर्ड रूट्स (Routes)
 # =====================================================================
 @app.route('/login')
 def login():
-    # 🎯 यहाँ अपनी Upstox API Key (Client ID) डालें जो आपने Render Environment में भी रखी है
     api_key = os.getenv("UPSTOX_API_KEY", "YOUR_UPSTOX_API_KEY_HERE")
     redirect_uri = "https://onrender.com"
-    
-    # 🟢 यह बिल्कुल सटीक अपस्टॉक्स का लॉगिन यूआरएल है
     upstox_login_url = f"https://upstox.com{api_key}&redirect_uri={redirect_uri}&response_type=code"
     return redirect(upstox_login_url)
 
@@ -186,9 +183,10 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Upstox Live Algo Dashboard</title>
         <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
-            .container { max-width: 1200px; margin: 0 auto; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
+            .market-header { background: #1e293b; color: #fff; padding: 15px; text-align: center; font-family: Arial, sans-serif; border-bottom: 2px solid #334155; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; box-sizing: border-box; }
+            .live-time { font-size: 18px; margin-bottom: 8px; }
+            .index-status { font-size: 16px; word-spacing: 5px; }
+            .container { max-width: 1200px; margin: 90px auto 20px auto; padding: 20px; }
             h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
             .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-            .card { background-color: #1e293b; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #334155; }
-
