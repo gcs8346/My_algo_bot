@@ -30,7 +30,7 @@ def generate_auto_access_token():
     return ACCESS_TOKEN
 
 # =====================================================================
-# 2. लाइव रणनीति और डेटा मैट्रिक्स
+# 2. लाइव रणनीति और डेटा मैट्रिक्स (पूरे इंडिकेटर्स के साथ)
 # =====================================================================
 INDEX_MAP = {
     "NIFTY50": {
@@ -65,6 +65,7 @@ def update_marketdata_and_signals():
 
     for index_name, config in INDEX_MAP.items():
         try:
+            # A. असली भाव (LTP) खींचना
             url_market_quote = f"https://upstox.com{config['instrument_key']}"
             response_quote = requests.get(url_market_quote, headers=BASE_HEADERS, timeout=3).json()
             
@@ -76,6 +77,7 @@ def update_marketdata_and_signals():
             else:
                 continue
 
+            # B. कैंडल्स फेच करना (RSI और Supertrend कैलकुलेशन)
             url_candles = f"https://upstox.com{config['instrument_key']}/1minute"
             response_candles = requests.get(url_candles, headers=BASE_HEADERS, timeout=3).json()
             
@@ -86,6 +88,7 @@ def update_marketdata_and_signals():
                     df = df.iloc[::-1].reset_index(drop=True)
                     df[['open', 'high', 'low', 'close']] = df[['open', 'high', 'low', 'close']].apply(pd.to_numeric)
                     
+                    # 📈 RSI इंडिकेटर लॉजिक
                     change = df['close'].diff()
                     gain = change.mask(change < 0, 0)
                     loss = -change.mask(change > 0, 0)
@@ -93,11 +96,13 @@ def update_marketdata_and_signals():
                     avg_loss = loss.ewm(com=13, min_periods=14).mean()
                     config["rsi"] = round((100 - (100 / (1 + (avg_gain / avg_loss)))).iloc[-1], 2)
                     
+                    # 🟢🔴 Supertrend इंडिकेटर लॉजिक
                     hl2 = (df['high'] + df['low']) / 2
                     ranges = pd.concat([df['high'] - df['low'], np.abs(df['high'] - df['close'].shift()), np.abs(df['low'] - df['close'].shift())], axis=1)
                     atr = ranges.max(axis=1).ewm(alpha=1/10, min_periods=10).mean()
                     config["st_dir"] = 1 if ltp > (hl2 + (3 * atr)).iloc[-1] else -1
 
+            # C. ऑप्शन चेन और PCR कैलकुलेशन
             url_chain = f"https://upstox.com{config['instrument_key']}&expiry_date=2026-10-26"
             response_chain = requests.get(url_chain, headers=BASE_HEADERS, timeout=3).json()
             
@@ -107,6 +112,7 @@ def update_marketdata_and_signals():
                 total_pe = sum([s.get('put_options', {}).get('market_data', {}).get('oi', 0) for s in data[:10] if s.get('put_options')])
                 config["pcr"] = round(total_pe / total_ce, 2) if total_ce > 0 else 1.0
 
+            # 🛠️ एक्टिव पोजीशन रिस्क मैनेजमेंट (Trailing SL)
             if config["in_position"]:
                 if config["trade_type"] == "CALL":
                     config["pnl"] = round((ltp - config["entry_price"]) * config["qty"], 2)
@@ -184,7 +190,4 @@ def home():
             .container { max-width: 1200px; margin: 90px auto 20px auto; padding: 20px; }
             h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
             .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-            .card { background-color: #1e293b; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #334155; }
-            .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
-            .index-name { font-size: 20px; font-weight: bold; color: #f1f5f9; }
     
