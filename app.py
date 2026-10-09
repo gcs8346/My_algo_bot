@@ -13,7 +13,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "super_secret_algo_key_change_thi
 # =====================================================================
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 
-# ग्लोबल टोकन और हेडर वेरिएबल्स (अब यह सीधे Render Environment से लोड होंगे)
+# ग्लोबल टोकन और हेडर वेरिएबल्स
 ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
 BASE_HEADERS = {
     'Authorization': f'Bearer {ACCESS_TOKEN}', 
@@ -21,9 +21,6 @@ BASE_HEADERS = {
 }
 
 def generate_auto_access_token():
-    """
-    Render पर अटकने से बचने के लिए, टोकन सीधे Environment से उठाया जा रहा है।
-    """
     global ACCESS_TOKEN, BASE_HEADERS
     ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
     if not ACCESS_TOKEN:
@@ -68,7 +65,6 @@ def update_marketdata_and_signals():
 
     for index_name, config in INDEX_MAP.items():
         try:
-            # A. असली भाव (LTP) खींचना - सटीक अपस्टॉक्स लाइव यूआरएल
             url_market_quote = f"https://upstox.com{config['instrument_key']}"
             response_quote = requests.get(url_market_quote, headers=BASE_HEADERS, timeout=3).json()
             
@@ -80,7 +76,6 @@ def update_marketdata_and_signals():
             else:
                 continue
 
-            # B. कैंडल्स फेच करना (RSI/Supertrend) - सटीक अपस्टॉक्स लाइव यूआरएल
             url_candles = f"https://upstox.com{config['instrument_key']}/1minute"
             response_candles = requests.get(url_candles, headers=BASE_HEADERS, timeout=3).json()
             
@@ -103,7 +98,6 @@ def update_marketdata_and_signals():
                     atr = ranges.max(axis=1).ewm(alpha=1/10, min_periods=10).mean()
                     config["st_dir"] = 1 if ltp > (hl2 + (3 * atr)).iloc[-1] else -1
 
-            # C. ऑप्शन चेन और PCR - सटीक अपस्टॉक्स लाइव यूआरएल
             url_chain = f"https://upstox.com{config['instrument_key']}&expiry_date=2026-10-26"
             response_chain = requests.get(url_chain, headers=BASE_HEADERS, timeout=3).json()
             
@@ -190,3 +184,7 @@ def home():
             .container { max-width: 1200px; margin: 90px auto 20px auto; padding: 20px; }
             h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
             .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+            .card { background-color: #1e293b; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #334155; }
+            .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
+            .index-name { font-size: 20px; font-weight: bold; color: #f1f5f9; }
+    
