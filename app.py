@@ -121,5 +121,5 @@ with panel_col1:
     # Macro FII DII Grid Card
     st.markdown("##### **Institutional Flow (Daily Net)**")
     fii_dii_df = pd.DataFrame({
-        "Part"
+        "Participant"})
         
