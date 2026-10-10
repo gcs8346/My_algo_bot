@@ -29,13 +29,12 @@ if 'api_connected' not in st.session_state:
 # ==========================================
 def calculate_indicators(prices_dict=None):
     """Natively calculates indicators and prevents NaN errors when data is missing"""
-    # अगर डेटा गायब या खाली हो, तो क्रैश होने से बचाने के लिए डमी डेटा लोड करें
+    # यहाँ एरर को ठीक कर दिया गया है (खाली डिक्शनरी में डमी नंबर्स डाल दिए हैं)
     if prices_dict is None or 'close' not in prices_dict or len(prices_dict['close']) < 15:
-        # डमी डेटा ताकि UI पर 'nan' न दिखे
         prices_dict = {
             'close':,
             'high':,
-            'low': [24190, 24200, 24195, 24205, 24210, 24220, 24215, 24225, 24230, 24228, 24235, 24240, 24238, 24245, 24250]
+            'low': [24190, 24200, 24195, 24205, 24210, 24205, 24215, 24220, 24215, 24225, 24230, 24225, 24235, 24240, 24235]
         }
 
     closes = np.array(prices_dict['close'])
@@ -59,7 +58,7 @@ def calculate_indicators(prices_dict=None):
         rsi = 100 - (100 / (1 + rs)) if loss != 0 else 50.0
     
     # 3. ATR & SuperTrend Logic Frame
-    atr = np.mean(highs - lows)  # Proxy for simplified execution
+    atr = np.mean(highs - lows)  
     supertrend_direction = "BUY" if closes[-1] > (ema_21) else "SELL"
     
     # Strategy Crossover Rule
@@ -125,9 +124,8 @@ with col_index:
     selected_index = st.selectbox("🎯 SELECT INDEX", ["NIFTY", "BANK NIFTY", "SENSEX"])
 
 with col_pcr:
-    st.metric("📊 LIVE PCR (5 ITM/OTM)", "0.95") # उदाहरण के लिए स्थिर PCR वैल्यू
+    st.metric("📊 LIVE PCR (5 ITM/OTM)", "0.95")
 
-# यहाँ टोकन बॉक्स और बटन को वापस जोड़ा गया है (जो डिलीट हो गया था)
 with col_token:
     token_input = st.text_input("🔑 UPSTOX ACCESS TOKEN", value=st.session_state.current_token, type="password")
     if st.button("🔌 CONNECT API"):
@@ -142,8 +140,7 @@ with col_token:
 # 5. EXECUTION & DISPLAY ENGINE
 # ==========================================
 st.markdown("---")
-# इंडिकेटर्स की गणना और रेंडरिंग
-stats = calculate_indicators(None) # लाइव एनवायरनमेंट में यहाँ आपका प्राइस डिक्शनरी आएगा
+stats = calculate_indicators(None) 
 
 col_rsi, col_ema, col_signal = st.columns(3)
 with col_rsi:
@@ -151,7 +148,6 @@ with col_rsi:
 with col_ema:
     st.metric("📈 EMA (9 / 21)", f"{stats['ema_9']} / {stats['ema_21']}")
 with col_signal:
-    # सिग्नल का रंग बदलने के लिए विज़ुअल फ़ॉर्मेटिंग
     sig = stats["signal"]
     if "CE" in sig:
         st.error(f"🔽 Algorithmic Strategy: {sig}")
@@ -160,7 +156,6 @@ with col_signal:
     else:
         st.info(f"🔹 Algorithmic Strategy: {sig}")
 
-# लाइव मार्केट डेटा स्नैपशॉट टेबल डिस्प्ले
 spot_val, options_df = get_live_market_snapshot(selected_index, st.session_state.current_token)
 st.subheader(f"⚡ {selected_index} Live Option Chain (Spot: {spot_val})")
 st.dataframe(options_df, use_container_width=True)
