@@ -102,7 +102,7 @@ def get_live_market_snapshot(index_name):
 st_autorefresh(interval=1000, key="live_dashboard_refresh")
 
 # Top Status Header Row
-col_timer, col_index, col_pcr, col_token = st.columns()
+col_timer, col_index, col_pcr, col_token = st.columns(4)
 
 with col_timer:
     # यह समय अब बिना अटके हर सेकंड मोबाइल स्क्रीन पर बदलेगा
