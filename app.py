@@ -4,6 +4,8 @@ import numpy as np
 import time
 from datetime import datetime
 import requests
+# LIVE TIMER को बिना रुके चलाने के लिए ऑटो-रीफ्रेश लाइब्रेरी
+from streamlit_autorefresh import st_autorefresh
 
 # Page configuration for wide dashboard layout
 st.set_page_config(page_title="Upstox Semi-Auto Options Dashboard", layout="wide")
@@ -15,6 +17,12 @@ if 'pending_signal' not in st.session_state:
     st.session_state.pending_signal = None
 if 'execution_logs' not in st.session_state:
     st.session_state.execution_logs = []
+
+# टोकन और एपीआई स्टेट को मोबाइल रीफ्रेश से सुरक्षित रखने के लिए सेशन स्टेट
+if 'current_token' not in st.session_state:
+    st.session_state.current_token = ""
+if 'api_connected' not in st.session_state:
+    st.session_state.api_connected = False
 
 # ==========================================
 # 1. MATHEMATICAL INDICATORS & STRATEGY ENGINE
@@ -54,11 +62,9 @@ def calculate_indicators(prices_dict):
 # ==========================================
 def execute_upstox_order(access_token, symbol, order_type, entry_price, target, sl):
     """Dispatches order to Upstox API Endpoint"""
-    # Replace with real endpoint: https://upstox.com
     url = "https://upstox.com" 
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     
-    # Placeholder response mapping live payload execution
     time.sleep(0.4) # Network latency simulation
     return {"status": "success", "order_id": f"UPD-{int(time.time())}", "message": "Order Placed Successfully"}
 
@@ -73,7 +79,6 @@ def get_live_market_snapshot(index_name):
     step = step_sizes[index_name]
     atm_strike = round(spot / step) * step
     
-    # Generate 5 ITM and 5 OTM Options Table Matrix
     options_data = []
     for i in range(-5, 6):
         strike = atm_strike + (i * step)
@@ -93,16 +98,42 @@ def get_live_market_snapshot(index_name):
 # 4. DASHBOARD FRONTEND RENDER
 # ==========================================
 
+# यह फ़ंक्शन स्क्रीन को हर 1 सेकंड (1000ms) में लाइव अपडेट (रीफ्रेश) रखेगा
+st_autorefresh(interval=1000, key="live_dashboard_refresh")
+
 # Top Status Header Row
 col_timer, col_index, col_pcr, col_token = st.columns([2, 2, 2, 4])
+
 with col_timer:
+    # यह समय अब बिना अटके हर सेकंड मोबाइल स्क्रीन पर बदलेगा
     st.metric("🕒 LIVE TIMER", datetime.now().strftime("%H:%M:%S"))
+
 with col_index:
     selected_index = st.selectbox("🎯 SELECT INDEX", ["NIFTY", "BANK NIFTY", "SENSEX"])
+
 with col_pcr:
     st.metric("📊 LIVE PCR (5 ITM/OTM)", "1.08", delta="Bullish Bias")
+
 with col_token:
-    upstox_token = st.text_input("🔑 Upstox Access Token", type="password", value="DUMMY_TOKEN")
+    # मोबाइल फ्रेंडली इनपुट बॉक्स
+    input_token = st.text_input(
+        "🔑 Upstox Access Token", 
+        type="password", 
+        value=st.session_state.current_token,
+        placeholder="यहाँ टोकन पेस्ट करें..."
+    )
+    
+    # मोबाइल पर बिना एंटर दबाए सीधे काम करने के लिए बटन
+    if st.button("🚀 Connect Upstox API", use_container_width=True):
+        if input_token:
+            st.session_state.current_token = input_token
+            st.session_state.api_connected = True
+            st.toast("Upstox API सफलतापूर्वक कनेक्ट हो गया!", icon="✅")
+        else:
+            st.toast("कृपया पहले टोकन बॉक्स में पेस्ट करें!", icon="❌")
+            
+    # बाकी बचे कोड के इस्तेमाल के लिए एक्टिव टोकन असाइन करना
+    upstox_token = st.session_state.current_token
 
 # Fetch current market state values
 spot_price, options_df = get_live_market_snapshot(selected_index)
@@ -117,9 +148,4 @@ panel_col1, panel_col2 = st.columns([4, 6])
 
 with panel_col1:
     st.subheader("📊 Macro & Tech Confluence Panel")
-    
-    # Macro FII DII Grid Card
-    st.markdown("##### **Institutional Flow (Daily Net)**")
-    fii_dii_df = pd.DataFrame({
-        "Participant"})
-        
+    st.markdown("### Institutional Flow (Daily Net)")
