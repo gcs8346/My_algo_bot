@@ -102,7 +102,7 @@ def get_live_market_snapshot(index_name):
 st_autorefresh(interval=1000, key="live_dashboard_refresh")
 
 # Top Status Header Row
-col_timer, col_index, col_pcr, col_token = st.columns([2, 2, 2, 4])
+col_timer, col_index, col_pcr, col_token = st.columns()
 
 with col_timer:
     # यह समय अब बिना अटके हर सेकंड मोबाइल स्क्रीन पर बदलेगा
@@ -144,8 +144,16 @@ tech_metrics = calculate_indicators(mock_history)
 
 # Grid Layout Generation
 st.divider()
-panel_col1, panel_col2 = st.columns([4, 6])
+panel_col1, panel_col2 = st.columns()
 
 with panel_col1:
     st.subheader("📊 Macro & Tech Confluence Panel")
     st.markdown("### Institutional Flow (Daily Net)")
+    
+    # कोड को पूरा और क्लोज करने के लिए डेटा डिस्प्ले
+    st.metric("Spot Price", spot_price)
+    st.write("RSI Indicator:", tech_metrics['rsi'])
+
+with panel_col2:
+    st.subheader("📋 Options Chain Table Matrix")
+    st.dataframe(options_df, use_container_width=True)
