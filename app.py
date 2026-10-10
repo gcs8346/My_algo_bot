@@ -29,12 +29,12 @@ if 'api_connected' not in st.session_state:
 # ==========================================
 def calculate_indicators(prices_dict=None):
     """Natively calculates indicators and prevents NaN errors when data is missing"""
-    # यहाँ एरर को ठीक कर दिया गया है (खाली डिक्शनरी में डमी नंबर्स डाल दिए हैं)
+    # यहाँ पर पूरे 15 डमी वैल्यूज़ डाल दिए हैं ताकि सिंटैक्स की कोई एरर न आए
     if prices_dict is None or 'close' not in prices_dict or len(prices_dict['close']) < 15:
         prices_dict = {
             'close':,
             'high':,
-            'low': [24190, 24200, 24195, 24205, 24210, 24205, 24215, 24220, 24215, 24225, 24230, 24225, 24235, 24240, 24235]
+            'low': [24090, 24110, 24100, 24120, 24140, 24130, 24150, 24170, 24160, 24180, 24200, 24190, 24210, 24230, 24240]
         }
 
     closes = np.array(prices_dict['close'])
