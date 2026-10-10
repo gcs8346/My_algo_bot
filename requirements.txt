@@ -1,3 +1,9 @@
 streamlit
+upstox-python-sdk
 pandas
+numpy
+requests
+TA-Lib
+mibian
+
 
