@@ -144,7 +144,7 @@ tech_metrics = calculate_indicators(mock_history)
 
 # Grid Layout Generation
 st.divider()
-panel_col1, panel_col2 = st.columns()
+panel_col1, panel_col2 = st.columns(2)
 
 with panel_col1:
     st.subheader("📊 Macro & Tech Confluence Panel")
