@@ -170,10 +170,8 @@ st.title("🤖 Topu Semi-Automatic Options Algo Dashboard")
 with st.sidebar:
     st.header("🔑 Authentication & Control")
     
-    # टोकन इनपुट बॉक्स
     token_input = st.text_input("Upstox Access Token", value=st.session_state.current_token, type="password", placeholder="पेस्ट करें यहाँ...")
     
-    # ✅ नया समर्पित कनेक्ट बटन (मोबाइल के लिए विशेष रूप से जोड़ा गया)
     if st.button("🔌 CONNECT API", type="secondary", use_container_width=True):
         if token_input:
             st.session_state.current_token = token_input
@@ -187,7 +185,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("💼 Current Status")
     
-    # कनेक्शन स्टेटस इंडिकेटर
     if st.session_state.api_connected:
         st.success("🟢 Upstox API: CONNECTED")
     else:
@@ -234,3 +231,4 @@ with col3:
     if st.session_state.pending_signal and st.session_state.order_status == "No Active Positions":
         st.write(f"⚠️ **Strategy Generated a {st.session_state.pending_signal} Signal!**")
         if st.button(f"⚡ EXECUTE {st.session_state.pending_signal} ORDER NOW", type="primary", use_container_width=True):
+            res = execute_upstox_order(st.session_state.current_token, selected_index, st.session_state.pending_signal)
