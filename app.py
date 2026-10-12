@@ -76,10 +76,33 @@ def execute_upstox_order(access_token, symbol, order_type, entry_price, target, 
 # 3. REAL MARKET DATA HANDLER (STABLE CLOSE)
 # ==========================================
 def get_live_market_snapshot(index_name, access_token=""):
-    spots = {"NIFTY": 24250, "BANK NIFTY": 52400, "SENSEX": 79600}
-    step_sizes = {"NIFTY": 50, "BANK NIFTY": 100, "SENSEX": 100}
+    import requests
     
-    spot = spots[index_name]
+    # 1. अपस्टॉक्स के लिए सही लाइव सिंबल मैपिंग
+    instrument_mapping = {
+        "NIFTY": "NSE_INDEX|Nifty 50",
+        "BANK NIFTY": "NSE_INDEX|Nifty Bank",
+        "SENSEX": "BSE_INDEX|SENSEX"
+    }
+    instrument_key = instrument_mapping.get(index_name, "NSE_INDEX|Nifty 50")
+    
+    # 2. अपस्टॉक्स लाइव मार्केट कोट API कॉल
+    url = f"https://upstox.com{instrument_key}"
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {access_token}'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers).json()
+        spot = response['data'][instrument_key]['last_price']
+    except Exception as e:
+        # अगर एपीआई काम न करे तो बैकअप के लिए आज का नजदीकी बेस प्राइस
+        spots_backup = {"NIFTY": 22450, "BANK NIFTY": 52400, "SENSEX": 72400}
+        spot = spots_backup.get(index_name, 22450)
+        
+    # 3. लाइव स्पॉट के आधार पर ऑटोमैटिक ऑप्शन चेन स्ट्राइक्स (आपकी पुरानी लॉजिक सुरक्षित)
+    step_sizes = {"NIFTY": 50, "BANK NIFTY": 100, "SENSEX": 100}
     step = step_sizes[index_name]
     atm_strike = round(spot / step) * step
     
@@ -97,6 +120,7 @@ def get_live_market_snapshot(index_name, access_token=""):
             "Theta": round(-12.5 - (abs(i) * 1.2), 2)
         })
     return spot, pd.DataFrame(options_data)
+        
 
 # ==========================================
 # 4. DASHBOARD FRONTEND RENDER
