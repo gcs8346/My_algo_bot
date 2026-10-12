@@ -179,6 +179,12 @@ if st.session_state.execution_logs:
             st.text(log)
 
 st.markdown("---")
+
+# यह लाइन हर 2 सेकंड में डेटा को लाइव टिक-टिक कराएगी
+st_autorefresh(interval=2000, key="market_refresh")
+
+# अब यह नए लाइव रिफ्रेश के साथ डेटा खींचेगा
 spot_val, options_df = get_live_market_snapshot(selected_index, st.session_state.current_token)
 st.subheader(f"⚡ {selected_index} Live Option Chain (Spot: {spot_val})")
 st.dataframe(options_df, use_container_width=True)
+
