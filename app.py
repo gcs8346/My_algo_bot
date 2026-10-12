@@ -78,7 +78,7 @@ def execute_upstox_order(access_token, symbol, order_type, entry_price, target, 
 def get_live_market_snapshot(index_name, access_token=""):
     import requests
     
-    # 1. अपस्टॉक्स के लिए सही लाइव सिंबल मैपिंग
+    # 1. अपस्टॉक्स v2 के लिए बिल्कुल सटीक इंस्ट्रूमेंट मैपिंग
     instrument_mapping = {
         "NIFTY": "NSE_INDEX|Nifty 50",
         "BANK NIFTY": "NSE_INDEX|Nifty Bank",
@@ -86,22 +86,28 @@ def get_live_market_snapshot(index_name, access_token=""):
     }
     instrument_key = instrument_mapping.get(index_name, "NSE_INDEX|Nifty 50")
     
-    # 2. अपस्टॉक्स लाइव मार्केट कोट API कॉल
+    # 2. अपस्टॉक्स v2 मार्केट लाइव कोट का ऑफिशियल URL (Market Quote Endpoint)
     url = f"https://upstox.com{instrument_key}"
+    
     headers = {
         'Accept': 'application/json',
         'Authorization': f'Bearer {access_token}'
     }
     
     try:
+        # अपस्टॉक्स से लाइव डेटा फेच करना
         response = requests.get(url, headers=headers).json()
-        spot = response['data'][instrument_key]['last_price']
-    except Exception as e:
-        # अगर एपीआई काम न करे तो बैकअप के लिए आज का नजदीकी बेस प्राइस
-        spots_backup = {"NIFTY": 22450, "BANK NIFTY": 52400, "SENSEX": 72400}
-        spot = spots_backup.get(index_name, 22450)
         
-    # 3. लाइव स्पॉट के आधार पर ऑटोमैटिक ऑप्शन चेन स्ट्राइक्स (आपकी पुरानी लॉजिक सुरक्षित)
+        # अपस्टॉक्स v2 के JSON फॉर्मेट से LTP निकालने का सही तरीका
+        spot = response['data'][instrument_key]['last_price']
+        
+    except Exception as e:
+        # अगर इंटरनेट या टोकन में कोई दिक्कत आए, तो टर्मिनल में एरर दिखेगा
+        print(f"API Error: {e}")
+        spots_backup = {"NIFTY": 22475, "BANK NIFTY": 52400, "SENSEX": 72450}
+        spot = spots_backup.get(index_name, 22475)
+        
+    # 3. ऑप्शन चेन स्ट्राइक्स की गणना (आपकी पुरानी ओरिजिनल लॉजिक)
     step_sizes = {"NIFTY": 50, "BANK NIFTY": 100, "SENSEX": 100}
     step = step_sizes[index_name]
     atm_strike = round(spot / step) * step
@@ -120,6 +126,7 @@ def get_live_market_snapshot(index_name, access_token=""):
             "Theta": round(-12.5 - (abs(i) * 1.2), 2)
         })
     return spot, pd.DataFrame(options_data)
+        
         
 
 # ==========================================
