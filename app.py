@@ -26,9 +26,6 @@ if 'api_connected' not in st.session_state:
     st.session_state.api_connected = False
 if 'last_valid_spot' not in st.session_state:
     st.session_state.last_valid_spot = 22500.00
-# 🎯 एरर ट्रैकिंग के लिए नया सेशन स्टेट जोड़ा
-if 'api_error_msg' not in st.session_state:
-    st.session_state.api_error_msg = ""
 
 # ==========================================
 # 3. REAL HISTORICAL DATA & INDICATORS ENGINE (OFFICIAL UPSTOX V2)
@@ -107,23 +104,12 @@ def get_live_market_snapshot(index_name, access_token=""):
     try:
         if access_token:
             headers['Authorization'] = f'Bearer {access_token}'
-            resp = requests.get(url, headers=headers)
-            
-            # 🎯 यहाँ हमने एरर लॉगिंग जोड़ दी ताकि असली खराबी पकड़ी जा सके
-            if resp.status_code != 200:
-                st.session_state.api_error_msg = f"API Error {resp.status_code}: {resp.text[:100]}"
-                raise Exception("API Failed")
-                
-            response = resp.json()
+            response = requests.get(url, headers=headers).json()
             spot = float(response['data'][instrument_key]['last_price'])
             st.session_state.last_valid_spot = spot
-            st.session_state.api_error_msg = "SUCCESS" # डेटा आ गया तो एरर साफ़
         else:
             raise Exception("No token")
-    except Exception as e:
-        if not st.session_state.api_error_msg or st.session_state.api_error_msg == "SUCCESS":
-            st.session_state.api_error_msg = f"Catch Block Error: {str(e)}"
-            
+    except Exception:
         np.random.seed(int(time.time()))
         st.session_state.last_valid_spot += np.random.uniform(-0.5, 0.5)
         spot = st.session_state.last_valid_spot
@@ -173,7 +159,6 @@ def execute_upstox_order(access_token, symbol, order_type):
         'Authorization': f'Bearer {access_token}'
     }
     
-    # 🎯 यहाँ आपके बताए गए बिल्कुल परफेक्ट लॉट साइज़ सेट हैं
     if "NIFTY" in symbol:
         qty = 65
     elif "BANK" in symbol:
@@ -240,9 +225,25 @@ with st.sidebar:
         st.session_state.order_status = "No Active Positions"
         st.session_state.execution_logs.append(f"[{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}] EMERGENCY SQUARE OFF TRIGGERED!")
 
-# ✅ यहाँ लेआउट की चौड़ाई का अनुपात वापस ठीक कर दिया है!
+# Main Dashboard Layout (Columns restored exactly to your specs)
 col1, col2, col3 = st.columns([1, 1.2, 1.8])
 
 # Live Data Handling
 instrument_mapping = {"NIFTY": "NSE_INDEX|Nifty 50", "BANK NIFTY": "NSE_INDEX|Nifty Bank", "SENSEX": "BSE_INDEX|SENSEX"}
 candles_df = fetch_historical_candles(instrument_mapping[selected_index], st.session_state.current_token)
+strategy_metrics = calculate_indicators(candles_df)
+spot_price, option_chain_df, calculated_pcr = get_live_market_snapshot(selected_index, st.session_state.current_token)
+
+with col1:
+    st.metric("🕒 LIVE TIMER (IST)", datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S'))
+    st.metric(f"📊 {selected_index} SPOT PRICE", f"{spot_price:.2f}")
+    st.metric("📊 LIVE PCR (5 ITM/OTM)", f"{calculated_pcr:.2f}")
+
+with col2:
+    st.subheader("📈 Technical Strategy Indicators")
+    st.metric("Calculated RSI (14)", strategy_metrics["rsi"])
+    st.metric("EMA (9 / 21)", f"{strategy_metrics['ema_9']} / {strategy_metrics['ema_21']}")
+    
+    sig = strategy_metrics["signal"]
+    if sig == "CE_BUY_SIGNAL":
+        st.success(f"🔽 Algorithmic Strategy: {sig}")
