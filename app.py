@@ -50,7 +50,7 @@ def get_live_market_snapshot(index_name, access_token):
         return None, "Error: Access Token Required"
         
     instrument_mapping = {
-        "NIFTY": "NSE_INDEX|Nifty 50", 
+        "NIFTY": "NSE_INDEX|Nifty50", 
         "BANK NIFTY": "NSE_INDEX|Nifty Bank", 
         "SENSEX": "BSE_INDEX|SENSEX"
     }
