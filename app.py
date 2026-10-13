@@ -31,13 +31,15 @@ if 'last_valid_spot' not in st.session_state:
 # 3. REAL HISTORICAL DATA & INDICATORS ENGINE (OFFICIAL UPSTOX V2)
 # ==========================================
 def fetch_historical_candles(instrument_key, access_token=""):
-    # ✅ बिल्कुल सटीक लाइव अपस्टॉक्स v2 कैंडल एंडपॉइंट
+    # ✅ बिल्कुल सटीक लाइव आधिकारिक अपस्टॉक्स v2 कैंडल एंडपॉइंट फिक्स
     url = f"https://upstox.com{instrument_key}/1minute"
-    headers = {'Accept': 'application/json'}
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {access_token}' if access_token else ''
+    }
     
     try:
         if access_token:
-            headers['Authorization'] = f'Bearer {access_token}'
             response = requests.get(url, headers=headers).json()
             candles = response['data']['candles']
             
@@ -100,13 +102,15 @@ def get_live_market_snapshot(index_name, access_token=""):
     instrument_mapping = {"NIFTY": "NSE_INDEX|Nifty 50", "BANK NIFTY": "NSE_INDEX|Nifty Bank", "SENSEX": "BSE_INDEX|SENSEX"}
     instrument_key = instrument_mapping.get(index_name, "NSE_INDEX|Nifty 50")
     
-    # ✅ बिल्कुल सटीक लाइव अपस्टॉक्स v2 लाइव कोट एंडपॉइंट
+    # ✅ बिल्कुल सटीक लाइव अपस्टॉक्स v2 लाइव कोट एंडपॉइंट फिक्स
     url = f"https://upstox.com{instrument_key}"
-    headers = {'Accept': 'application/json'}
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {access_token}' if access_token else ''
+    }
     
     try:
         if access_token:
-            headers['Authorization'] = f'Bearer {access_token}'
             response = requests.get(url, headers=headers).json()
             spot = float(response['data'][instrument_key]['last_price'])
             st.session_state.last_valid_spot = spot
@@ -181,6 +185,7 @@ st.title("🤖 Topu Semi-Automatic Options Algo Dashboard")
 with st.sidebar:
     st.header("🔑 Authentication & Control")
     
+    # सेशन स्टेट वेरिएबल को वैल्यू में पास किया ताकि टोकन गायब न हो
     token_input = st.text_input("Upstox Access Token", value=st.session_state.current_token, type="password", placeholder="पेस्ट करें यहाँ...")
     
     # ✅ समर्पित कनेक्ट बटन
@@ -233,6 +238,4 @@ with col2:
         st.session_state.pending_signal = "CE_BUY"
     elif sig == "PE_BUY_SIGNAL":
         st.error(f"🔽 Algorithmic Strategy: {sig}")
-        st.session_state.pending_signal = "PE_BUY"
-    else:
-        st.warning("🔽 Algorithmic Strategy: NO ACTIVE SIGNAL")
+    
