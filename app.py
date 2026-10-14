@@ -4,8 +4,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
-API_LTP = "https://upstox.com"
-API_CHAIN = "https://upstox.com"
+API_LTP = "https://api.upstox.com/v2/market-quote/ltp"
+API_CHAIN = "https://api.upstox.com/v2/option/chain"
 
 if 'current_token' not in st.session_state:
     st.session_state.current_token = ""
@@ -19,32 +19,19 @@ def clean_token(raw):
     return t
 
 def get_live_spot(token):
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Accept': 'application/json'
-    }
+    headers = {'Authorization': f'Bearer {token}'}
     params = {"instrument_key": "NSE_INDEX|Nifty 50,BSE_INDEX|SENSEX"}
-    
-    try:
-        r = requests.get(API_LTP, headers=headers, params=params, timeout=10)
-        
-        # अगर सर्वर से कोई गड़बड़ रिस्पांस आया है (जैसे 401 Unauthorized या 404)
-        if r.status_code != 200:
-            return 0, 0, {"error": f"Server returned status code {r.status_code}", "response_text": r.text}
-            
-        j = r.json()
-        data = j.get('data', {})
-        nifty = 0
-        sensex = 0
-        for k,v in data.items():
-            if "Nifty 50" in k:
-                nifty = v.get('last_price',0)
-            if "SENSEX" in k:
-                sensex = v.get('last_price',0)
-        return nifty, sensex, j
-    except Exception as e:
-        # अगर JSON खाली है या कोई और गड़बड़ है तो कोड क्रैश नहीं होगा
-        return 0, 0, {"error": str(e)}
+    r = requests.get(API_LTP, headers=headers, params=params, timeout=10)
+    j = r.json()
+    data = j.get('data', {})
+    nifty = 0
+    sensex = 0
+    for k,v in data.items():
+        if "Nifty 50" in k:
+            nifty = v.get('last_price',0)
+        if "SENSEX" in k:
+            sensex = v.get('last_price',0)
+    return nifty, sensex, j
 
 with st.sidebar:
     st.header("Auth")
@@ -76,7 +63,7 @@ else:
     spot = sensex_spot
 
 if spot == 0:
-    st.error("Spot 0 aa raha hai. Upstox API से सही डेटा नहीं मिल पाया। नीचे सर्वर का असली मैसेज देखें:")
+    st.error("Spot 0 aa raha hai, token expire hai")
     st.json(raw_json)
     st.stop()
 
@@ -87,20 +74,11 @@ else:
 
 st.success(f"Selected {idx} Spot: {spot} | ATM: {atm} | Expiry: {expiry}")
 
-headers = {'Authorization': f'Bearer {st.session_state.current_token}', 'Accept': 'application/json'}
+headers = {'Authorization': f'Bearer {st.session_state.current_token}'}
 inst = "BSE_INDEX|SENSEX" if idx=="SENSEX" else "NSE_INDEX|Nifty 50"
-
-try:
-    chain_res = requests.get(API_CHAIN, headers=headers, params={"instrument_key": inst, "expiry_date": expiry}, timeout=15)
-    if chain_res.status_code == 200:
-        chain_json = chain_res.json()
-        chain_data = chain_json.get('data', [])
-    else:
-        chain_data = []
-        chain_json = {"error": f"Chain API returned status {chain_res.status_code}", "text": chain_res.text}
-except Exception as e:
-    chain_data = []
-    chain_json = {"error": str(e)}
+chain_res = requests.get(API_CHAIN, headers=headers, params={"instrument_key": inst, "expiry_date": expiry}, timeout=15)
+chain_json = chain_res.json()
+chain_data = chain_json.get('data', [])
 
 if not chain_data:
     st.error(f"{idx} ka {expiry} pe chain khali hai")
@@ -112,4 +90,3 @@ for it in near:
     ce = it.get('call_options',{}).get('market_data',{}).get('ltp')
     pe = it.get('put_options',{}).get('market_data',{}).get('ltp')
     st.write(f"{it['strike_price']} | CE: {ce} | PE: {pe}")
-    
