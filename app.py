@@ -102,10 +102,10 @@ def dashboard(idx, expiry, lot, exec_mode):
         st.warning(f"{idx} {expiry} chain abhi khali hai")
         st.json(chain)
         return
-    atm = round(spot / 50) _ 50 if idx != "SENSEX" else round(spot / 100) _ 100
+    atm = round(spot / 50) * 50 if idx != "SENSEX" else round(spot / 100) * 100
     near = sorted(sorted(chain['data'], key=lambda x: abs(x['strike_price']-spot))[:11], key=lambda x: x['strike_price'])
     st.info(f"ATM: {atm} | Lot: {lot}")
-    c1, c2 = http://st.columns(2)
+    c1, c2 = st.columns(2)
     with c1:
         st.subheader("CE")
         for it in near:
