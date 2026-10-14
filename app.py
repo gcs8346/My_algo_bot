@@ -102,7 +102,7 @@ def dashboard(idx, expiry, lot, exec_mode):
         st.warning(f"{idx} {expiry} chain abhi khali hai")
         st.json(chain)
         return
-    atm = round(spot/50)_50 if idx!="SENSEX" else round(spot/100)_100
+    atm = round(spot / 50) _ 50 if idx != "SENSEX" else round(spot / 100) _ 100
     near = sorted(sorted(chain['data'], key=lambda x: abs(x['strike_price']-spot))[:11], key=lambda x: x['strike_price'])
     st.info(f"ATM: {atm} | Lot: {lot}")
     c1, c2 = http://st.columns(2)
@@ -112,12 +112,12 @@ def dashboard(idx, expiry, lot, exec_mode):
             ltp = it.get('call_options',{}).get('market_data',{}).get('ltp',0)
             inst = it.get('call_options',{}).get('instrument_key','')
             st.metric(f"{it['strike_price']} CE", f"{ltp}")
-            if http://st.button(f"BUY {it['strike_price']} CE", key=f"ce_{it['strike_price']}"):
+            if st.button(f"BUY {it['strike_price']} CE", key=f"ce_{it['strike_price']}"):
                 st.json(place_order(inst, lot, "BUY"))
     with c2:
         st.subheader("PE")
         for it in near:
-            ltp = http://it.get('put_options',{}).get('market_data',{}).get('ltp',0)
+            ltp = it.get('put_options',{}).get('market_data',{}).get('ltp',0)
             inst = it.get('put_options',{}).get('instrument_key','')
             st.metric(f"{it['strike_price']} PE", f"{ltp}")
             if st.button(f"BUY {it['strike_price']} PE", key=f"pe_{it['strike_price']}"):
