@@ -25,7 +25,7 @@ def get_headers():
 
 def get_instrument_key(index):
     m = {"NIFTY": "NSE_INDEX|Nifty 50", "BANKNIFTY": "NSE_INDEX|Nifty Bank", "FINNIFTY": "NSE_INDEX|Nifty Fin Service", "SENSEX": "BSE_INDEX|SENSEX"}
-    return http://m.get(index, "NSE_INDEX|Nifty 50")
+    return m.get(index, "NSE_INDEX|Nifty 50")
 
 def get_next_tuesday_expiry():
     today = datetime.now(IST).date()
