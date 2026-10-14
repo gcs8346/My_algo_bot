@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-import http://urllib.parse
+import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 import time
