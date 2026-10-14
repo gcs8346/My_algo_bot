@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 API_LTP = "https://api.upstox.com"
-API_CHAIN = "api.upstox.com"
+API_CHAIN = "https://api.upstox.com"
 
 if 'current_token' not in st.session_state:
     st.session_state.current_token = ""
