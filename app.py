@@ -4,8 +4,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
-API_LTP = "https://api.upstox.com"
-API_CHAIN = "https://api.upstox.com"
+API_LTP = "https://upstox.com"
+API_CHAIN = "https://upstox.com"
 
 if 'current_token' not in st.session_state:
     st.session_state.current_token = ""
@@ -90,3 +90,4 @@ for it in near:
     ce = it.get('call_options',{}).get('market_data',{}).get('ltp')
     pe = it.get('put_options',{}).get('market_data',{}).get('ltp')
     st.write(f"{it['strike_price']} | CE: {ce} | PE: {pe}")
+    
