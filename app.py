@@ -6,17 +6,17 @@ import pytz
 import time
 import pandas as pd
 
-http://st.set_page_config(page_title="All Index Perfect", layout="wide")
-IST = http://pytz.timezone('Asia/Kolkata')
+st.set_page_config(page_title="All Index Perfect", layout="wide")
+IST = pytz.timezone('Asia/Kolkata')
 HOLIDAYS = ["2026-10-20"]
 
-if 'current_token' not in http://st.session_state:
-    http://st.session_state.current_token = ""
-    http://st.session_state.api_connected = False
+if 'current_token' not in st.session_state:
+    st.session_state.current_token = ""
+    st.session_state.api_connected = False
 
 def clean_token(t):
     t = http://t.strip()
-    if http://t.lower().startswith("bearer "):
+    if t.lower().startswith("bearer "):
         t = t[7:]
     return t
 
