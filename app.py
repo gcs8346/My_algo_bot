@@ -68,9 +68,9 @@ if spot == 0:
     st.stop()
 
 if idx == "SENSEX":
-    atm = round(spot / 100) _ 100
+    atm = round(spot / 100) * 100
 else:
-    atm = round(spot / 50) _ 50
+    atm = round(spot / 50) * 50
 
 st.success(f"Selected {idx} Spot: {spot} | ATM: {atm} | Expiry: {expiry}")
 
