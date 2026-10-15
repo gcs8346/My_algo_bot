@@ -9,7 +9,7 @@ SL_POINTS = 25
 st.set_page_config(page_title="TOPU TOWER LIVE", layout="wide")
 st.title(f"🚀 {SYMBOL} TOPU TOWER - LIVE")
 
-TOKEN = http://os.getenv("UPSTOX_TOKEN")
+TOKEN = os.getenv("UPSTOX_TOKEN")
 if not TOKEN:
     st.error("Render > Environment > UPSTOX_TOKEN daal de")
     st.stop()
