@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd, os, http://plotly.graph_objects as go
+import pandas as pd, os, plotly.graph_objects as go
 from datetime import datetime
 import upstox_client
 
