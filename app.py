@@ -27,7 +27,7 @@ def get_live():
     inst = "BSE_INDEX|SENSEX" if SYMBOL=="SENSEX" else "NSE_INDEX|Nifty 50"
     to_d = datetime.now().strftime("%Y-%m-%d")
     from_d = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
-    resp = history_api.get_historical_candle_data1(instrument_key=inst, interval="5minute", to_date=to_d, from_date=from_d, api_version="2.0")
+    resp = history_api.get_historical_candle_data1(instrument_key=inst, interval="1minute", to_date=to_d, from_date=from_d, api_version="2.0")
     df = pd.DataFrame(resp.data.candles, columns=['timestamp','open','high','low','close','volume','oi'])
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values('timestamp')
