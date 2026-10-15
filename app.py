@@ -44,5 +44,3 @@ if ltp > df['open'].iloc:
     st.success(f"🟢 FINAL BULLISH - BUY | SL: {ltp-SL_POINTS:.0f}")
 else:
     st.error(f"🔴 FINAL BEARISH - WAIT")[0]
-
-Ab isko direct select karke copy kar le, Render pe paste kar de.
