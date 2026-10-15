@@ -6,16 +6,16 @@ import upstox_client
 SYMBOL = "SENSEX"
 SL_POINTS = 25
 
-http://st.set_page_config(page_title="TOPU TOWER LIVE", layout="wide")
-http://st.title(f"🚀 {SYMBOL} TOPU TOWER - LIVE")
+st.set_page_config(page_title="TOPU TOWER LIVE", layout="wide")
+st.title(f"🚀 {SYMBOL} TOPU TOWER - LIVE")
 
 TOKEN = http://os.getenv("UPSTOX_TOKEN")
 if not TOKEN:
-    http://st.error("Render > Environment > UPSTOX_TOKEN daal de")
-    http://st.stop()
+    st.error("Render > Environment > UPSTOX_TOKEN daal de")
+    st.stop()
 
 configuration = upstox_client.Configuration()
-http://configuration.access_token = TOKEN
+configuration.access_token = TOKEN
 api_client = upstox_client.ApiClient(configuration)
 history_api = upstox_client.HistoryApi(api_client)
 
@@ -27,22 +27,22 @@ def get_live():
         interval="5minute",
         api_version="2.0"
     )
-    df = http://pd.DataFrame(resp.data.candles, columns=['timestamp','open','high','low','close','volume','oi'])
-    df['timestamp'] = http://pd.to_datetime(df['timestamp'])
-    df = http://df.sort_values('timestamp')
+    df = pd.DataFrame(resp.data.candles, columns=['timestamp','open','high','low','close','volume','oi'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp')
     ltp = float(df.iloc[-1]['close'])
     return df, ltp
 
 df, ltp = get_live()
 
-http://st.metric("LIVE LTP", f"{ltp:.1f}", f"{ltp-df['open'].iloc:+.1f}")
-fig = http://go.Figure(data=[go.Candlestick(x=df['timestamp'], open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
-http://fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False)
-http://st.plotly_chart(fig, use_container_width=True)[0]
+st.metric("LIVE LTP", f"{ltp:.1f}", f"{ltp-df['open'].iloc:+.1f}")
+fig = go.Figure(data=[go.Candlestick(x=df['timestamp'], open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
+fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False)
+st.plotly_chart(fig, use_container_width=True)[0]
 
 if ltp > df['open'].iloc:
-    http://st.success(f"🟢 FINAL BULLISH - BUY | SL: {ltp-SL_POINTS:.0f}")
+    st.success(f"🟢 FINAL BULLISH - BUY | SL: {ltp-SL_POINTS:.0f}")
 else:
-    http://st.error(f"🔴 FINAL BEARISH - WAIT")[0]
+    st.error(f"🔴 FINAL BEARISH - WAIT")[0]
 
 Ab isko direct select karke copy kar le, Render pe paste kar de.
