@@ -4,4 +4,3 @@ plotly
 websockets
 python-dotenv
 upstox-python-sdk
-upstox-client
