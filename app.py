@@ -10,8 +10,9 @@ import pandas as pd
 import plotly.express as px
 import websockets
 from dotenv import load_dotenv
-from upstox_client import MarketDataFeedApi, Configuration, ApiClient
-from upstox_client.feeder.market_data_feeder import MarketDataFeeder 
+from upstox_client import ApiClient, Configuration
+from upstox_client.feeder.market_data_streamer_v3 import MarketDataStreamerV3
+
 
 
 # --- 1. छुपी हुई फाइल/क्लाउड सीक्रेट्स से टोकन लोड करना ---
