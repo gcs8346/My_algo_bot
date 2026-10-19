@@ -3,4 +3,4 @@ pandas
 plotly
 websockets
 python-dotenv
-upstox-python-sdk
+upstox-python-v3
