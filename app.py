@@ -5,9 +5,9 @@ import websockets
 import os
 from dotenv import load_dotenv
 
-# यहाँ इम्पोर्ट को बिल्कुल सही किया गया है (upstox_python_sdk ही सही मुख्य फोल्डर है)
-from upstox_python_sdk import ApiClient, Configuration
-from upstox_python_sdk.api import MarketDataApi
+# Upstox v3 का बिल्कुल सही और नया इम्पोर्ट स्ट्रक्चर
+import upstox_client
+from upstox_client.rest import ApiException
 
 # Streamlit पेज कॉन्फ़िगरेशन (यह सबसे ऊपर होना चाहिए)
 st.set_page_config(page_title="Quantum Terminal", layout="wide", page_icon="⚡")
@@ -23,21 +23,20 @@ if not UPSTOX_ACCESS_TOKEN:
     st.error("❌ ERROR: UPSTOX_ACCESS_TOKEN NOT FOUND IN SECRETS! Please check Streamlit configuration.")
     st.stop()
 
-# 2. UPSTOX API SETUP (कॉन्फ़िगरेशन)
-configuration = Configuration()
+# 2. UPSTOX V3 API SETUP
+configuration = upstox_client.Configuration()
 configuration.access_token = UPSTOX_ACCESS_TOKEN
-api_client = ApiClient(configuration)
-
-# सही क्लास का नाम MarketDataApi है जिसे ऊपर से इम्पोर्ट किया गया है
-market_data_api = MarketDataApi(api_client)
 
 # 3. LIVE MARKET DATA FETCH FUNCTION
 @st.cache_data(ttl=10)
 def get_nifty_data():
     try:
-        # NIFTY 50 इंडेक्स के लिए डेटा रिक्वेस्ट
+        # सही API इंस्टेंस बनाना
+        api_instance = upstox_client.MarketDataApi(upstox_client.ApiClient(configuration))
         instrument_key = "NSE_INDEX|Nifty 50"
-        response = market_data_api.get_market_quote_ohlc(instrument_key, "I")
+        
+        # मार्केट OHLC डेटा फेच करना
+        response = api_instance.get_market_quote_ohlc(instrument_key, "I")
         
         data_dict = response.data[instrument_key]
         ohlc = data_dict.ohlc
@@ -51,7 +50,7 @@ def get_nifty_data():
             "LTP": last_price
         }
     except Exception as e:
-        # यदि मार्केट बंद है या वीकेंड है तो डमी/सिम्युलेटेड डेटा लोड होगा ताकि डैशबोर्ड खाली न दिखे
+        # यदि मार्केट बंद है या वीकेंड है तो सिमुलेशन डेटा लोड होगा ताकि डैशबोर्ड खाली न दिखे
         return {"Open": 24200.5, "High": 24350.2, "Low": 24150.8, "Close": 24180.3, "LTP": 24275.10, "Status": "Demo Data (Market Closed)"}
 
 # डेटा फ़ेच करें
