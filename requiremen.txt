@@ -1,6 +1,0 @@
-streamlit
-pandas
-plotly
-websockets
-python-dotenv
-upstox-client
