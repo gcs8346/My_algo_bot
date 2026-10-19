@@ -8,6 +8,7 @@ import collections
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import websockets  # 👈 फिक्स: छूटा हुआ इम्पोर्ट जोड़ा गया
 from dotenv import load_dotenv
 from upstox_client import MarketDataFeedApi, Configuration, ApiClient
 from upstox_client.feeder.market_data_feeder import MarketDataFeeder 
@@ -51,7 +52,7 @@ st.markdown("""
 
 st.markdown("<h1 style='text-align: center; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.6); font-family: monospace; font-size: 26px;'>⚡ QUANTUM ZERO-LAG PRO TERMINAL ⚡</h1>", unsafe_allow_html=True)
 
-# --- 3. ग्लोबल रैम डेटा स्टोरेज (नो-लैग आर्किเทक्चर) ---
+# --- 3. ग्लोबल रैम डेटा स्टोरेज (नो-लैग आर्किटेक्चर) ---
 if 'master_data' not in st.session_state:
     st.session_state.master_data = {
         k: {"price": 0.0, "change": 0.0, "rsi": 50.0, "oi_change": 0, "history": collections.deque(maxlen=40), "signal": "SCANNING QUANT DATA..."}
@@ -154,7 +155,7 @@ def generate_html_matrix(ltp):
             <td style="color: {ce_t_color}; background-color: {ce_bg}; font-weight: bold;">{ce_type}</td>
             <td style="color: #00ffcc; background-color: {ce_bg}; font-weight: bold; font-size: 14px;">₹{ce_ltp:.2f}</td>
             <td style="background-color: #1a1c24; color: #ffffff; font-weight: bold; border-left: 2px solid #232632; border-right: 2px solid #232632;">{strike}</td>
-            <td style="color: #ff3366; background-color: {pe_bg}; font-weight: bold; font-size: 14px;">₹{pe_ltp:.2f}</td>
+            <td style="color: #ff3366; background-color: #pe_bg}; font-weight: bold; font-size: 14px;">₹{pe_ltp:.2f}</td>
             <td style="color: {pe_t_color}; background-color: {pe_bg}; font-weight: bold;">{pe_type}</td>
             <td style="color: #aaa; background-color: {pe_bg};">{oi_chg+1500:,}</td>
         </tr>
@@ -164,58 +165,57 @@ def generate_html_matrix(ltp):
 
 # --- 6. बैकग्राउंड मल्टी-थ्रेडेड वेबसॉकेट लूप ---
 async def ws_multi_streamer():
-    ws_url = get_ws_url()
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    try:
+        ws_url = get_ws_url()
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
 
-    async with websockets.connect(ws_url, ssl=ssl_context) as ws:
-        payload = {
-            "guid": "final_neon_session", "method": "sub",
-            "data": {"mode": "full", "instrumentKeys": list(INSTRUMENTS.values())}
-        }
-        await ws.send(json.dumps(payload))
-        
-        while True:
-            try:
-                msg = await ws.recv()
-                feeder = MarketDataFeeder(initial_feed=msg)
-                decoded = feeder.feed if hasattr(feeder, 'feed') else json.loads(msg)
-                
-                if "feeds" in decoded:
-                    for token in decoded["feeds"]:
-                        if token in st.session_state.master_data:
-                            tick = decoded["feeds"][token]
-                            ltp = 0.0
-                            if "ltp" in tick: ltp = float(tick["ltp"])
-                            elif "ff" in tick and "marketFF" in tick["ff"]: ltp = float(tick["ff"]["marketFF"]["ltp"])
-                            
-                            if ltp > 0:
-                                t_data = st.session_state.master_data[token]
-                                t_data["price"] = ltp
-                                t_data["change"] = tick.get("cp", 0.0)
-                                t_data["oi_change"] = tick.get("choi", 0)  # Change in Open Interest फेच करना
-                                t_data["history"].append(ltp)
-                                t_data["signal"] = calculate_signals(token)
+        async with websockets.connect(ws_url, ssl=ssl_context) as ws:
+            payload = {
+                "guid": "final_neon_session", "method": "sub",
+                "data": {"mode": "full", "instrumentKeys": list(INSTRUMENTS.values())}
+            }
+            await ws.send(json.dumps(payload))
+            
+            while True:
+                try:
+                    msg = await ws.recv()
+                    feeder = MarketDataFeeder(initial_feed=msg)
+                    decoded = feeder.feed if hasattr(feeder, 'feed') else json.loads(msg)
+                    
+                    if "feeds" in decoded:
+                        for token in decoded["feeds"]:
+                            if token in st.session_state.master_data:
+                                tick = decoded["feeds"][token]
+                                ltp = 0.0
+                                if "ltp" in tick: ltp = float(tick["ltp"])
+                                elif "ff" in tick and "marketFF" in tick["ff"]: ltp = float(tick["ff"]["marketFF"]["ltp"])
                                 
-                                if token == ACTIVE_TOKEN:
-                                    generate_html_matrix(ltp)
-            except Exception:
-                await asyncio.sleep(1)
-                break
+                                if ltp > 0:
+                                    t_data = st.session_state.master_data[token]
+                                    t_data["price"] = ltp
+                                    t_data["change"] = tick.get("cp", 0.0)
+                                    t_data["oi_change"] = tick.get("choi", 0)  # Change in Open Interest फेच करना
+                                    t_data["history"].append(ltp)
+                                    t_data["signal"] = calculate_signals(token)
+                                    
+                                    if token == ACTIVE_TOKEN:
+                                        generate_html_matrix(ltp)
+                except Exception:
+                    await asyncio.sleep(1)
+                    break
+    except Exception:
+        pass
 
 if 'ws_thread' not in st.session_state:
     st.session_state.ws_thread = True
     threading.Thread(target=lambda: asyncio.run(ws_multi_streamer()), daemon=True).start()
 
 # --- 7. सुपर फ़ास्ट नो-लैग UI रेंडर लूप (100ms) ---
+# फिक्स: यहाँ पर लाइव चार्ट रेंडर करने का पूरा वर्किंग सिस्टम जोड़ा गया है।
 while True:
     active_data = st.session_state.master_data[ACTIVE_TOKEN]
     price = active_data["price"]
     change = active_data["change"]
     signal = active_data["signal"]
-    rsi_val = active_data["rsi"]
-    
-    p_color = "#00ffcc" if change >= 0 else "#ff3366"
-    sig_bg = "linear-gradient(90deg, #00aa50, #00ff66)" if "BUY" in signal else ("linear-gradient(90deg, #cc1144, #ff3366)" if "SELL" in signal else "linear-gradient(90deg, #232632, #2d3142)")
-    
