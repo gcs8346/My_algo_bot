@@ -4,11 +4,11 @@ import numpy as np
 import plotly.graph_objects as graph_objects
 import time
 
-# 1. फुल-स्क्रीन रिस्पॉन्सिव लेआउट
+# 1. फुल-स्क्रीन मोबाइल फ्रेंडली लेआउट
 st.set_page_config(layout="wide", page_title="Quantum No.1 Algo Master Terminal")
 
 st.markdown("<h1 style='text-align: center; color: #ff3333;'>⚡ QUANTUM ZERO-LAG MASTER TERMINAL ⚡</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-weight: bold; color: #aaaaaa;'>WORLD'S NO.1 SIGNAL ALGO — PnL-INTEGRATED EXIT VERSION</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-weight: bold; color: #aaaaaa;'>WORLD'S NO.1 SIGNAL ALGO — INTEGRATED TRADING CONSOLE</p>", unsafe_allow_html=True)
 st.write("---")
 
 # ==============================================================================
@@ -58,52 +58,66 @@ live_ltp = round(base_price + np.random.uniform(-4, 6), 2)
 st.write("---")
 
 # ==============================================================================
-# 📊 सेक्शन 3: लाइव PnL और एकीकृत एग्जिट बटन (PNL & EXIT BUTTON INTEGRATION)
+# 🚀 🔥 सेक्शन 3: यूनिफाइड ट्रेडिंग कंसोल (EXECUTE, PNL, TSL & EXIT ALL-IN-ONE)
 # ==============================================================================
-st.header("💰 Live Trade Tracking & Instant Exit Panel")
+st.header("🎛️ Unified Trading Console")
 
-if st.session_state.trade_active:
-    # लाइव PnL कैलकुलेशन
-    qty = 100
-    price_diff = live_ltp - st.session_state.entry_price
-    current_pnl = round(price_diff * qty, 2)
+# पूरा सिस्टम एक ही कंटेनर बॉक्स के अंदर दिखेगा
+with st.container(border=True):
     
-    # ट्रेलिंग स्टॉपलॉस खिसकाना
-    if live_ltp > st.session_state.highest_price_seen:
-        st.session_state.highest_price_seen = live_ltp
-        new_sl = round(live_ltp * 0.9975, 2)
-        if new_sl > st.session_state.current_sl: st.session_state.current_sl = new_sl
-
-    # PnL और बटन को एक साथ दिखाने के लिए 3 कॉलम्स का डिज़ाइन
-    pnl_box_col, sl_box_col, ltp_box_col = st.columns([2, 1, 1])
-    
-    with pnl_box_col:
-        # रंग बदलना (प्रॉफिट में हरा, लॉस में लाल)
-        box_color = "#1e3d2f" if current_pnl >= 0 else "#3d1e1e"
-        text_color = "#2ecc71" if current_pnl >= 0 else "#e74c3c"
-        sign = "+" if current_pnl >= 0 else ""
+    if not st.session_state.trade_active:
+        # --- जब कोई ट्रेड ओपन नहीं है (एंट्री मोड) ---
+        st.markdown("<h3 style='color: #2ecc71; margin-bottom: 15px;'>🛡️ STRATEGY STATUS: PERFECT BUY SIGNAL ACTIVE 🎯</h3>", unsafe_allow_html=True)
         
-        st.markdown(f"<div style='background-color:{box_color}; padding:15px; border-radius:10px; border-left:8px solid {text_color}; margin-bottom:10px;'>"
-                    f"<p style='margin:0; color:{text_color}; font-weight:bold;'>🟩 LIVE POSITION PnL ({selected_display_name})</p>"
-                    f"<h1 style='margin:0; color:white;'>₹ {sign}{current_pnl}</h1>"
-                    f"<p style='margin:0; color:#aaaaaa;'>एंट्री: ₹{st.session_state.entry_price} | LTP: ₹{live_ltp}</p></div>", unsafe_allow_html=True)
+        c_ent1, c_ent2 = st.columns([3, 1])
+        with c_ent1:
+            st.markdown(f"<p style='font-size:18px; margin:0;'>Ready to trade: <b>{selected_display_name}</b> at Current Price: <b>₹ {live_ltp}</b></p>", unsafe_allow_html=True)
+        with c_ent2:
+            if st.button("✅ YES - EXECUTE BUY NOW", use_container_width=True, type="primary"):
+                st.session_state.trade_active = True
+                st.session_state.entry_price = live_ltp
+                st.session_state.current_sl = round(live_ltp * 0.995, 2)  # शुरुआती SL 0.5% नीचे
+                st.session_state.highest_price_seen = live_ltp
+                st.balloons()
+                st.rerun()
+                
+    else:
+        # --- जब ट्रेड एक्टिव हो चुका है (PnL, TSL, और Exit मोड) ---
+        qty = 100
+        price_diff = live_ltp - st.session_state.entry_price
+        current_pnl = round(price_diff * qty, 2)
         
-        # 🔥 PnL के ठीक नीचे तुरंत एग्जिट करने का बटन
-        if st.button("🚨 CLICK HERE TO EXIT THIS POSITION NOW", use_container_width=True, type="primary"):
-            st.session_state.trade_active = False
-            st.warning(f"🛑 [SQUARE-OFF] आपकी {selected_display_name} की पोजीशन क्लोज हो गई है! फाइनल PnL: ₹ {current_pnl}")
-            st.rerun()
+        # ट्रेलिंग स्टॉपलॉस कैलकुलेशन
+        if live_ltp > st.session_state.highest_price_seen:
+            st.session_state.highest_price_seen = live_ltp
+            new_sl = round(live_ltp * 0.9975, 2)  # नया SL प्राइस से 0.25% नीचे
+            if new_sl > st.session_state.current_sl: st.session_state.current_sl = new_sl
 
-    with sl_box_col:
-        st.markdown(f"<div style='background-color:#2a2b36; padding:20px; border-radius:10px; border-left:8px solid #00ffff; height:155px;'>"
-                    f"<p style='margin:0; color:#00ffff; font-weight:bold;'>🛡️ TRAILING STOPLOSS</p>"
-                    f"<h2 style='margin:0; color:white;'>₹ {st.session_state.current_sl}</h2>"
-                    f"<p style='margin:0; color:#aaaaaa; font-size:12px;'>मार्केट हाई: ₹{st.session_state.highest_price_seen}</p></div>", unsafe_allow_html=True)
-                    
-    with ltp_box_col:
-        st.metric(label="🔄 करंट मार्केट भाव (LTP)", value=f"₹{live_ltp}")
-else:
-    st.info("📦 कोई ओपन पोजीशन नहीं है। नीचे से 'YES' दबाकर ट्रेड शुरू करें।")
+        # डिज़ाइन: PnL + TSL एक तरफ, EXIT बटन ठीक उसके सामने
+        c_act1, c_act2 = st.columns([2, 1])
+        
+        with c_act1:
+            box_bg = "#1e3d2f" if current_pnl >= 0 else "#3d1e1e"
+            txt_color = "#2ecc71" if current_pnl >= 0 else "#e74c3c"
+            sign = "+" if current_pnl >= 0 else ""
+            
+            # लाइव PnL डिस्प्ले
+            st.markdown(f"<div style='background-color:{box_bg}; padding:15px; border-radius:8px; border-left:6px solid {txt_color};'>"
+                        f"<p style='margin:0; color:{txt_color}; font-weight:bold;'>🟩 LIVE POSITION PnL ({selected_display_name})</p>"
+                        f"<h2 style='margin:0; color:white;'>₹ {sign}{current_pnl}</h2>"
+                        f"<p style='margin:0; color:#aaaaaa; font-size:13px;'>एंट्री: ₹{st.session_state.entry_price} | LTP: ₹{live_ltp}</p></div>", unsafe_allow_html=True)
+            
+            # 🔥 ट्रेलिंग स्टॉपलॉस ठीक PnL के नीचे चमकीले अक्षरों में
+            st.markdown(f"<p style='margin-top:10px; font-size:18px; color:#00ffff; font-weight:bold;'>🛡️ CURRENT TRAILING SL: <span style='color:white; background-color:#2a2b36; padding:2px 8px; border-radius:4px;'>₹ {st.session_state.current_sl}</span></p>", unsafe_allow_html=True)
+
+        with c_act2:
+            st.write("") # थोड़ा स्पेसिंग देने के लिए
+            st.write("")
+            # 🔥 एग्जिट बटन ठीक PnL और TSL के बगल में सामने
+            if st.button("🚨 CLICK TO EXIT NOW", use_container_width=True, type="primary"):
+                st.session_state.trade_active = False
+                st.warning(f"🛑 [SQUARE-OFF] पोजीशन क्लोज! फाइनल PnL: ₹ {current_pnl}")
+                st.rerun()
 
 st.write("---")
 
@@ -121,24 +135,24 @@ fig = graph_objects.Figure()
 fig.add_trace(graph_objects.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Candle"))
 fig.add_trace(graph_objects.Scatter(x=df.index, y=df['EMA_9'], line=dict(color='#00ffff', width=1.5), name='EMA 9'))
 fig.add_trace(graph_objects.Scatter(x=df.index, y=df['EMA_21'], line=dict(color='#ff00ff', width=1.5), name='EMA 21'))
-fig.update_layout(xaxis_rangeslider_visible=False, height=350, template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
+fig.update_layout(xaxis_rangeslider_visible=False, height=320, template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
 st.plotly_chart(fig, use_container_width=True)
 
 st.write("---")
 
 # ==============================================================================
-# 🚀 सेक्शन 5: ऑर्डर एग्जीक्यूशन डेस्क (ENTRY ONLY)
+# 🔢 सेक्शन 5: लाइव कस्टमाइज्ड ऑप्शन चेन (OPTION CHAIN - CALL / PUT OI)
 # ==============================================================================
-st.header("🚀 Execution Entry Desk")
+st.header(f"🔢 {selected_display_name} रीयल-टाइम ऑप्शन चेन (OI डेटा)")
+step = 100 if "SENSEX" in selected_display_name or "BANK" in selected_display_name else (50 if "NIFTY" in selected_display_name else 5)
+strike_center = int(round(live_ltp / step) * step)
+strikes = [strike_center - (2*step), strike_center - step, strike_center, strike_center + step, strike_center + (2*step)]
 
-if not st.session_state.trade_active:
-    st.markdown("<h3 style='color: #2ecc71;'>STRATEGY STATUS: PERFECT BUY SIGNAL ACTIVE 🎯</h3>", unsafe_allow_html=True)
-    if st.button("✅ YES - EXECUTE BUY ORDER NOW", use_container_width=True, type="primary"):
-        st.session_state.trade_active = True
-        st.session_state.entry_price = live_ltp
-        st.session_state.current_sl = round(live_ltp * 0.995, 2)
-        st.session_state.highest_price_seen = live_ltp
-        st.balloons()
-        st.rerun()
-else:
-    st.warning("⚠️ पोजीशन पहले से ही ओपन है! ऊपर ट्रैकिंग पैनल में लाइव PnL और EXIT बटन देखें।")
+option_chain_df = pd.DataFrame({
+    'Call OI (Lakhs)': [42.1, 68.4, 95.2, 38.1, 14.5],
+    'Call LTP (₹)': [180.0, 120.0, 75.0, 35.0, 12.0],
+    'STRIKE PRICE': strikes,
+    'Put LTP (₹)': [10.0, 28.0, 68.0, 115.0, 190.0],
+    'Put OI (Lakhs)': [12.4, 31.2, 88.5, 54.1, 41.6]
+})
+st.dataframe(option_chain_df, use_container_width=True, height=220)
