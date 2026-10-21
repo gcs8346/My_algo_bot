@@ -23,7 +23,7 @@ if 'entry_price' not in st.session_state: st.session_state.entry_price = 0.0
 if 'current_sl' not in st.session_state: st.session_state.current_sl = 0.0
 if 'highest_price_seen' not in st.session_state: st.session_state.highest_price_seen = 0.0
 
-# अपस्टॉक्स API के लिए बिल्कुल सही और ऑफिशियल अप्परकेस (UPPERCASE) मैपिंग
+# अपस्टॉक्स API के लिए बिल्कुल सही वॉचलिस्ट फ़ॉर्मेट
 watchlist = {
     "NSE NIFTY 50": "NSE_INDEX:NIFTY 50",
     "NSE BANK NIFTY": "NSE_INDEX:NIFTY BANK",
@@ -44,7 +44,7 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION
+# 🔌 DIRECT LIVE API REFRESH FUNCTION (🚨 BUFFED & FIX APPLIED)
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
@@ -52,13 +52,15 @@ def get_live_ltp_from_upstox(token, instrument_key):
         configuration.access_token = token
         api_instance = upstox_client.MarketQuoteApi(upstox_client.ApiClient(configuration))
         
-        # सिंबल को हमेशा अप्परकेस में भेजें
-        api_response = api_instance.ltp(symbol=instrument_key.upper(), api_version='2.0')
+        # API से डेटा मांगना
+        api_response = api_instance.ltp(symbol=instrument_key, api_version='2.0')
         
         if api_response and api_response.data:
-            for response_key in api_response.data.keys():
-                if response_key.upper() == instrument_key.upper():
-                    return float(api_response.data[response_key].last_price)
+            # 🚨 फिक्स: नाम के किसी भी केस या फॉर्मेट मिसमैच को बाईपास करने के लिए लूप
+            for response_key, feed in api_response.data.items():
+                # अगर सिंबल का मुख्य हिस्सा मैच हो जाता है तो सीधे वैल्यू उठा लें
+                if instrument_key.split(':')[-1].upper() in response_key.upper():
+                    return float(feed.last_price)
     except Exception as e:
         pass
     return None
@@ -67,12 +69,13 @@ def get_live_ltp_from_upstox(token, instrument_key):
 # 🎯 SECTION 2: INSTRUMENT SELECTION & LTP CAPTURE
 # ==============================================================================
 st.header("🎯 ट्रेडिंग इंस्ट्रूमेंट का चयन करें")
-selected_display_name = st.selectbox("आप किसमें trade/analysis करना चाहते हैं? लिस्ट से चुनें:", list(watchlist.keys()))
+selected_display_name = st.selectbox("आप किसमें ट्रेड/एनालिसिस करना चाहते हैं? लिस्ट से चुनें:", list(watchlist.keys()))
 target_key = watchlist[selected_display_name]
 
 live_ltp = 0.0
 is_real_data = False
 
+# अगर टोकन मौजूद है, तो सीधे अपस्टॉक्स के असली लाइव भाव को स्क्रीन पर रेंडर करो
 if ACCESS_TOKEN:
     fetched_price = get_live_ltp_from_upstox(ACCESS_TOKEN, target_key)
     if fetched_price and fetched_price > 0:
@@ -81,12 +84,12 @@ if ACCESS_TOKEN:
         with col_tok2:
             st.success("✅ LIVE EXCHANGE DATA SYNCED! सीधा असली भाव आ रहा है।")
 
-# अगर लाइव डेटा नहीं आया या टोकन नहीं डाला, तभी बैकअप टिक रनर चलेगा (22,960 के बेस पर)
+# अगर टोकन अमान्य है या रिस्पॉन्स नहीं आया, सिर्फ तभी फॉलबैक लेवल्स को 22,960 के सही बेस पर चलाएं
 if not is_real_data:
     if 'sim_prices' not in st.session_state:
         st.session_state.sim_prices = {
-            "NSE_INDEX:NIFTY 50": 22960.50, # बिल्कुल रियल मार्केट बेस पर सेट
-            "NSE_INDEX:NIFTY BANK": 55520.00,
+            "NSE_INDEX:NIFTY 50": 22960.50,  # 🚨 आपके रियल-टाइम 22,960 के बेस पर रीसेट!
+            "NSE_INDEX:NIFTY BANK": 55488.10,
             "NSE_EQ:RELIANCE": 2420.00
         }
     
@@ -196,9 +199,3 @@ with tab2:
             "CALL LTP": f"Rs. {max(ce_value, 0.5):.2f}",
             "STRIKE PRICE": s,
             "PUT LTP": f"Rs. {max(pe_value, 0.5):.2f}",
-            "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
-        })
-        
-    df_oc = pd.DataFrame(op_data)
-    
-    # 🚨 पूरी तरह से सुरक्षित डिस्प्ले - बिना किसी डिक्शनरी स्टाइलिंग के ताकि सिंटैक्स एरर कभी न आए!
