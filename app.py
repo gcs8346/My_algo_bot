@@ -1,5 +1,5 @@
-import streamlit as st, requests, http://urllib.parse, pandas as pd, http://plotly.graph_objects as go
-http://st.set_page_config(page_title="TOPU TOWER ONE FINAL", layout="wide")
+import streamlit as st, requests urllib.parse, pandas as pd, plotly.graph_objects as go
+st.set_page_config(page_title="TOPU TOWER ONE FINAL", layout="wide")
 API_KEY = http://st.secrets["API_KEY"]
 API_SECRET = http://st.secrets["API_SECRET"]
 REDIRECT_URI = http://st.secrets["REDIRECT_URI"]
