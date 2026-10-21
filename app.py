@@ -45,7 +45,7 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION (🚨 UPDATED WITH CORRECT METHOD)
+# 🔌 DIRECT LIVE API REFRESH FUNCTION
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
@@ -55,10 +55,10 @@ def get_live_ltp_from_upstox(token, instrument_key):
         # Upstox SDK की सही क्लास
         api_instance = upstox_client.MarketQuoteApi(upstox_client.ApiClient(configuration))
         
-        # 'get_ltp' की जगह Upstox का सही ऑफिशियल मेथड 'ltp' इस्तेमाल किया है
+        # 'get_ltp' की जगह सही ऑफिशियल मेथड 'ltp'
         api_response = api_instance.ltp(symbol=instrument_key, api_version='2.0')
         
-        # रिस्पॉन्स डिक्शनरी से लाइव भाव एक्सट्रैक्ट करना
+        # रिस्पॉन्स डिक्शनरी से लाइव भाव निकालना
         if api_response and api_response.data:
             if instrument_key in api_response.data:
                 return float(api_response.data[instrument_key].last_price)
@@ -84,7 +84,7 @@ selected_display_name = st.selectbox("आप किसमें ट्रेड/
 
 target_key = watchlist[selected_display_name]
 
-# अगर टोकन डाला है तो सीधे अपस्टॉक्स से लाइव प्राइस उठाओ, वरना स्क्रीन पर अलर्ट दिखाओ
+# अगर टोकन डाला है तो सीधे अपस्टॉक्स से लाइव प्राइस उठाओ, वरना अलर्ट दिखाओ
 if st.session_state.api_connected and ACCESS_TOKEN:
     fetched_price = get_live_ltp_from_upstox(ACCESS_TOKEN, target_key)
     if fetched_price:
@@ -194,3 +194,6 @@ if live_ltp > 0:
                 "CALL LTP (₹)": max(ce_value, 0.5),
                 "STRIKE PRICE": s,
                 "PUT LTP (₹)": max(pe_value, 0.5),
+                "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
+            })
+            
