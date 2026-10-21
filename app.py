@@ -104,7 +104,7 @@ try:
     fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, title=f"{yahoo_sym} • 1MIN • LIVE ORIGINAL")
     st.plotly_chart(fig, width='stretch')
     
-    st.markdown(f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:#0f1a2b;border:1px solid #22c55e;border-radius:10px;text-align:center;font-weight:800'><div style='color:#ef4444'>SL: {sl:.0f}</div><div style='color:#22c55e'>TGT: {tgt:.0f}</div><div style='color:#2ea8ff'>LIVE: {yahoo_sym} • {datetime.now().strftime('%H:%M:%S')}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:#0f1a2b;border:1px solid #22c55e;border-radius:10px;text-align:center;font-weight:800'><div style='color:#ef4444'>SL: {sl:.0f}</div><div style='color:#22c55e'>TGT: {tgt:.0f}</div><div style='color:#2ea8ff'>LIVE: {yahoo_sym} • st.markdown(f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:#0f1a2b;border:1px solid #22c55e;border-radius:10px;text-align:center;font-weight:800'><div style='color:#ef4444'>SL: {sl:.0f}</div><div style='color:#22c55e'>TGT: {tgt:.0f}</div><div style='color:#2ea8ff'>LIVE: {yahoo_sym} • {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S IST')}</div></div>", unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"LIVE FETCH FAILED: {e}")
