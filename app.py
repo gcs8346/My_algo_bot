@@ -195,7 +195,7 @@ with tab2:
         pe_value = round((s - live_ltp) * 0.9 + 50 if s > live_ltp else 30 + (live_ltp - s) * 0.1, 2)
         
         op_data.append({
-            "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2),
+            "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2)},
             "CALL LTP": f"Rs. {max(ce_value, 0.5):.2f}",
             "STRIKE PRICE": s,
             "PUT LTP": f"Rs. {max(pe_value, 0.5):.2f}",
