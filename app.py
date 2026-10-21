@@ -16,7 +16,7 @@ SYMBOL_MAP = {
     "FINNIFTY": "^CNXFIN"
 }
 
-st.markdown("<h1 style='color:#2ea8ff'>TOPU TOWER - FINAL SUPER COMBO - LIVE ORIGINAL</h1>", unsafe_allow_html=True)
+st.title("TOPU TOWER - FINAL SUPER COMBO - LIVE ORIGINAL")
 
 c1,c2,c3,c4,c5 = st.columns(5)
 with c1:
@@ -52,11 +52,10 @@ def get_data(sym):
     return df
 
 try:
-    with st.spinner(f"Fetching LIVE {yahoo_sym}..."):
-        df = get_data(yahoo_sym)
+    df = get_data(yahoo_sym)
     
     if df.empty:
-        st.error(f"No data for {yahoo_sym}")
+        st.error("No data")
         st.stop()
     
     if isinstance(df.columns, pd.MultiIndex):
@@ -78,30 +77,29 @@ try:
     else:
         ema_trend = "SIDEWAYS"
     
-    open_trend = "BULLISH" if ltp > day_open else "BEARISH" if ltp < day_open else "FLAT"
+    open_trend = "BULLISH" if ltp > day_open else "BEARISH"
     recent_high = df['High'].tail(20).max()
     recent_low = df['Low'].tail(20).min()
     sl = ltp - sl_points if ema_trend=="BULLISH" else ltp + sl_points
     tgt = ltp + sl_points*2.5 if ema_trend=="BULLISH" else ltp - sl_points*2.5
     
     m1,m2,m3,m4,m5 = st.columns(5)
-    ltp_str = f"{ltp:.2f}"
-    diff_str = f"{ltp-day_open:.2f}"
-    open_str = f"{day_open:.2f}"
-    
-    m1.metric(f"{index_opt} LTP", ltp_str, diff_str)
-    m2.metric("DAY OPEN", open_str)
+    m1.metric("LTP", f"{ltp:.2f}", f"{ltp-day_open:.2f}")
+    m2.metric("DAY OPEN", f"{day_open:.2f}")
     m3.metric("EMA TREND", ema_trend)
     m4.metric("OPEN TREND", open_trend)
     m5.metric("CHANNEL", f"{recent_low:.0f} - {recent_high:.0f}")
-    
+
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Candle"))
-    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_FAST'], line=dict(color='gold', width=2), name=f"EMA {ema_fast}"))
-    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_MID'], line=dict(color='deepskyblue', width=2), name=f"EMA {ema_mid}"))
-    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_SLOW'], line=dict(color='magenta', width=2), name=f"EMA {ema_slow}"))
-    fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, title=yahoo_sym + " - 1MIN - LIVE")
+    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close']))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_FAST'], line=dict(color='gold', width=2), name="EMA FAST"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_MID'], line=dict(color='blue', width=2), name="EMA MID"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_SLOW'], line=dict(color='magenta', width=2), name="EMA SLOW"))
+    fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, width='stretch')
     
     ist_time = datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S IST')
-    footer_html = "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:#0f1a2
+    st.success(f"SL: {sl:.0f} | TGT: {tgt:.0f} | LIVE: {yahoo_sym} - {ist_time}")
+
+except Exception as e:
+    st.error(f"FAILED: {e}")
