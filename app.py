@@ -23,7 +23,7 @@ if 'entry_price' not in st.session_state: st.session_state.entry_price = 0.0
 if 'current_sl' not in st.session_state: st.session_state.current_sl = 0.0
 if 'highest_price_seen' not in st.session_state: st.session_state.highest_price_seen = 0.0
 
-# अपस्टॉक्स API के लिए बिल्कुल सही वॉचलिस्ट फ़ॉर्मेट
+# अपस्टॉक्स API के लिए वॉचलिस्ट फ़ॉर्मेट
 watchlist = {
     "NSE NIFTY 50": "NSE_INDEX:NIFTY 50",
     "NSE BANK NIFTY": "NSE_INDEX:NIFTY BANK",
@@ -44,7 +44,7 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION
+# 🔌 DIRECT LIVE API REFRESH FUNCTION (🚨 COMPLETE SYNC FIX)
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
@@ -52,12 +52,15 @@ def get_live_ltp_from_upstox(token, instrument_key):
         configuration.access_token = token
         api_instance = upstox_client.MarketQuoteApi(upstox_client.ApiClient(configuration))
         
-        # API से डेटा मांगना
+        # API से डेटा रिक्वेस्ट करना
         api_response = api_instance.ltp(symbol=instrument_key, api_version='2.0')
         
         if api_response and api_response.data:
-            for response_key, feed in api_response.data.items():
-                if instrument_key.split(':')[-1].upper() in response_key.upper():
+            # अपस्टॉक्स रिस्पॉन्स कीस (Keys) में से सिर्फ मुख्य सिंबल नाम मैच करना
+            pure_symbol = instrument_key.split(':')[-1].upper() # e.g., 'NIFTY 50' या 'RELIANCE'
+            
+            for res_key, feed in api_response.data.items():
+                if pure_symbol in res_key.upper():
                     return float(feed.last_price)
     except Exception as e:
         pass
@@ -73,7 +76,7 @@ target_key = watchlist[selected_display_name]
 live_ltp = 0.0
 is_real_data = False
 
-# अगर टोकन मौजूद है, तो सीधे अपस्टॉक्स के असली लाइव भाव को स्क्रीन पर रेंडर करो
+# अगर असली टोकन है, तो सीधा एक्सचेंज से लाइव डेटा सिंक करो
 if ACCESS_TOKEN:
     fetched_price = get_live_ltp_from_upstox(ACCESS_TOKEN, target_key)
     if fetched_price and fetched_price > 0:
@@ -82,11 +85,11 @@ if ACCESS_TOKEN:
         with col_tok2:
             st.success("✅ LIVE EXCHANGE DATA SYNCED! सीधा असली भाव आ रहा है।")
 
-# अगर टोकन अमान्य है या रिस्पॉन्स नहीं आया, सिर्फ तभी फॉलबैक लेवल्स को 22,960 के सही बेस पर चलाएं
+# अगर टोकन खाली है या रिस्पॉन्स मिस हुआ, केवल तभी फॉलबैक इंजन चलेगा
 if not is_real_data:
     if 'sim_prices' not in st.session_state:
         st.session_state.sim_prices = {
-            "NSE_INDEX:NIFTY 50": 22960.50,  # आपके रियल-टाइम 22,960 के बेस पर रीसेट!
+            "NSE_INDEX:NIFTY 50": 22960.50,
             "NSE_INDEX:NIFTY BANK": 55488.10,
             "NSE_EQ:RELIANCE": 2420.00
         }
@@ -116,7 +119,7 @@ with st.container(border=True):
         with c_ent1:
             st.markdown(f"<p style='font-size:18px; margin:0;'>Ready to trade: <b>{selected_display_name}</b> at Current Price: <b>₹ {live_ltp}</b></p>", unsafe_allow_html=True)
         with c_ent2:
-            if st.button("✅ YES - EXECUTE BUY NOW", use_container_width=True, type="primary"):
+            if st.button("✅ YES - EXECUTE BUY NOW", width='stretch', type="primary"):
                 st.session_state.trade_active = True
                 st.session_state.entry_price = live_ltp
                 st.session_state.current_sl = round(live_ltp * 0.995, 2)
@@ -151,7 +154,7 @@ with st.container(border=True):
         with c_act2:
             st.write("")
             st.write("")
-            if st.button("🚨 CLICK TO EXIT NOW", use_container_width=True, type="primary"):
+            if st.button("🚨 CLICK TO EXIT NOW", width='stretch', type="primary"):
                 st.session_state.trade_active = False
                 st.warning(f"🛑 [SQUARE-OFF] पोजीशन क्लोज! FINAL PnL: ₹ {current_pnl}")
                 st.rerun()
@@ -175,7 +178,7 @@ with tab1:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=chart_data['Time'], y=chart_data['Price'], mode='lines+markers', name='LTP Path', line=dict(color='#ff3333', width=3)))
     fig.update_layout(title=f"{selected_display_name} 1-Min Live Pulse Chart", template="plotly_dark", xaxis_title="Time", yaxis_title="Price (₹)")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 with tab2:
     st.subheader(f"⚡ {selected_display_name} Near-Month Derivative Matrix")
@@ -202,4 +205,3 @@ with tab2:
         op_data.append(row_dict)
         
     df_oc = pd.DataFrame(op_data)
-    st.dataframe(df_oc, use_container_width=True, hide_index=True)
