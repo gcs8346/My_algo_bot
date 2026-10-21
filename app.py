@@ -28,7 +28,6 @@ with c3:
 with c4:
     trail_gap = st.number_input("TRAILING GAP", value=50)
 with c5:
-    stock_symbol = ""
     if index_opt == "STOCK":
         stock_symbol = st.text_input("STOCK SYMBOL NSE", "RELIANCE").upper().strip()
         yahoo_sym = stock_symbol + ".NS" if ".NS" not in stock_symbol and "^" not in stock_symbol else stock_symbol
@@ -57,7 +56,7 @@ try:
         df = get_data(yahoo_sym)
     
     if df.empty:
-        st.error(f"No data for {yahoo_sym} - HDFC ki jagah HDFCBANK use kar")
+        st.error(f"No data for {yahoo_sym}")
         st.stop()
     
     if isinstance(df.columns, pd.MultiIndex):
@@ -86,5 +85,23 @@ try:
     tgt = ltp + sl_points*2.5 if ema_trend=="BULLISH" else ltp - sl_points*2.5
     
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric(f"{index_opt} LTP", f"{ltp:.2f}", f"{ltp-day_open:.2f}")
-    m2.metric("DAY OPEN", f"{
+    ltp_str = f"{ltp:.2f}"
+    diff_str = f"{ltp-day_open:.2f}"
+    open_str = f"{day_open:.2f}"
+    
+    m1.metric(f"{index_opt} LTP", ltp_str, diff_str)
+    m2.metric("DAY OPEN", open_str)
+    m3.metric("EMA TREND", ema_trend)
+    m4.metric("OPEN TREND", open_trend)
+    m5.metric("CHANNEL", f"{recent_low:.0f} - {recent_high:.0f}")
+    
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Candle"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_FAST'], line=dict(color='gold', width=2), name=f"EMA {ema_fast}"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_MID'], line=dict(color='deepskyblue', width=2), name=f"EMA {ema_mid}"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA_SLOW'], line=dict(color='magenta', width=2), name=f"EMA {ema_slow}"))
+    fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, title=yahoo_sym + " - 1MIN - LIVE")
+    st.plotly_chart(fig, width='stretch')
+    
+    ist_time = datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S IST')
+    footer_html = "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:#0f1a2
