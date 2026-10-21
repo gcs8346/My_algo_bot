@@ -1,9 +1,9 @@
-streamlit
-upstox-python-sdk==2.30.0
+streamlit==1.66.0
+yfinance
 pandas
-numpy
+plotly
 requests
+upstox-python-sdk
 python-dotenv
+websockets
 websocket-client
-protobuf
-pytz
