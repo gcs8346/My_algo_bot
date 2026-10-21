@@ -5,3 +5,4 @@ websockets==17.2
 python-dotenv==1.2.4
 upstox-python-sdk==2.30.0
 protobuf==7.36.2
+streamlit-autorefresh
