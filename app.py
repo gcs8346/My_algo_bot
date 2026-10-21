@@ -145,7 +145,7 @@ if live_ltp > 0:
                 st.write("")
                 if st.button("🚨 CLICK TO EXIT NOW", use_container_width=True, type="primary"):
                     st.session_state.trade_active = False
-                    st.warning(f"🛑 [SQUARE-OFF] पोजीशन क्लोज! फाइनल PnL: ₹ {current_pnl}")
+                    st.warning(f"🛑 [SQUARE-OFF] पोजीशन क्लोज! FINAL PnL: ₹ {current_pnl}")
                     st.rerun()
 
     st.write("---")
@@ -190,4 +190,3 @@ if live_ltp > 0:
             
         df_oc = pd.DataFrame(op_data)
         st.dataframe(df_oc.style.format({
-            "CALL LTP (₹)": "₹{:.2f}",
