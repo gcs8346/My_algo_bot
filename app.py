@@ -45,18 +45,23 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION
+# 🔌 DIRECT LIVE API REFRESH FUNCTION (🚨 UPDATED WITH CORRECT METHOD)
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
         configuration = upstox_client.Configuration()
         configuration.access_token = token
+        
+        # Upstox SDK की सही क्लास
         api_instance = upstox_client.MarketQuoteApi(upstox_client.ApiClient(configuration))
         
-        # सीधे अपस्टॉक्स के सर्वर से लाइव मार्केट क्वोट्स फेच करना
-        api_response = api_instance.get_ltp(symbol=instrument_key, api_version='2.0')
+        # 'get_ltp' की जगह Upstox का सही ऑफिशियल मेथड 'ltp' इस्तेमाल किया है
+        api_response = api_instance.ltp(symbol=instrument_key, api_version='2.0')
+        
+        # रिस्पॉन्स डिक्शनरी से लाइव भाव एक्सट्रैक्ट करना
         if api_response and api_response.data:
-            return float(api_response.data[instrument_key].last_price)
+            if instrument_key in api_response.data:
+                return float(api_response.data[instrument_key].last_price)
     except Exception as e:
         st.error(f"Upstox Connection Error: {str(e)}")
     return None
@@ -189,8 +194,3 @@ if live_ltp > 0:
                 "CALL LTP (₹)": max(ce_value, 0.5),
                 "STRIKE PRICE": s,
                 "PUT LTP (₹)": max(pe_value, 0.5),
-                "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
-            })
-            
-        df_oc = pd.DataFrame(op_data)
-        
