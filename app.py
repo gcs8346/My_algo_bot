@@ -44,7 +44,7 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION (🚨 BUFFED & FIX APPLIED)
+# 🔌 DIRECT LIVE API REFRESH FUNCTION
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
@@ -56,9 +56,7 @@ def get_live_ltp_from_upstox(token, instrument_key):
         api_response = api_instance.ltp(symbol=instrument_key, api_version='2.0')
         
         if api_response and api_response.data:
-            # 🚨 फिक्स: नाम के किसी भी केस या फॉर्मेट मिसमैच को बाईपास करने के लिए लूप
             for response_key, feed in api_response.data.items():
-                # अगर सिंबल का मुख्य हिस्सा मैच हो जाता है तो सीधे वैल्यू उठा लें
                 if instrument_key.split(':')[-1].upper() in response_key.upper():
                     return float(feed.last_price)
     except Exception as e:
@@ -88,7 +86,7 @@ if ACCESS_TOKEN:
 if not is_real_data:
     if 'sim_prices' not in st.session_state:
         st.session_state.sim_prices = {
-            "NSE_INDEX:NIFTY 50": 22960.50,  # 🚨 आपके रियल-टाइम 22,960 के बेस पर रीसेट!
+            "NSE_INDEX:NIFTY 50": 22960.50,  # आपके रियल-टाइम 22,960 के बेस पर रीसेट!
             "NSE_INDEX:NIFTY BANK": 55488.10,
             "NSE_EQ:RELIANCE": 2420.00
         }
@@ -194,8 +192,14 @@ with tab2:
         ce_value = round((live_ltp - s) * 0.9 + 50 if live_ltp > s else 30 + (s - live_ltp) * 0.1, 2)
         pe_value = round((s - live_ltp) * 0.9 + 50 if s > live_ltp else 30 + (live_ltp - s) * 0.1, 2)
         
-        op_data.append({
-            "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2)},
+        row_dict = {
+            "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2),
             "CALL LTP": f"Rs. {max(ce_value, 0.5):.2f}",
             "STRIKE PRICE": s,
             "PUT LTP": f"Rs. {max(pe_value, 0.5):.2f}",
+            "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
+        }
+        op_data.append(row_dict)
+        
+    df_oc = pd.DataFrame(op_data)
+    st.dataframe(df_oc, use_container_width=True, hide_index=True)
