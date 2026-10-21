@@ -3,7 +3,8 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
-
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=60 * 1000, key="tower_live")
 st.set_page_config(page_title="TOPU TOWER FINAL", layout="wide")
 
 SYMBOL_MAP = {
