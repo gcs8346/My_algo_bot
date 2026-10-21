@@ -1,8 +1,9 @@
 streamlit==1.66.0
 pandas==3.0.6
+numpy==2.5.4
 plotly==7.1.0
-websockets==17.2
-python-dotenv==1.2.4
+streamlit-autorefresh==1.0.1
 upstox-python-sdk==2.30.0
-protobuf==7.36.2
-streamlit-autorefresh
+websocket-client==1.9.2
+websockets==17.3
+pyparsing==3.3.3
