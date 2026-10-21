@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+import streamlit as st
+from pathlib import Path
+
+st.set_page_config(layout="wide")
+html_code = Path("index.html").read_text()
+st.components.v1.html(html_code, height=800, scrolling=True)<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
