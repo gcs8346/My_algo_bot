@@ -11,7 +11,7 @@ st.title("📈 Upstox 1-Year Token Live Dashboard")
 st.caption("यह डैशबोर्ड आपके 4G इंटरनेट पर बिना किसी Static IP के लाइव डेटा सिंक कर रहा है।")
 
 # 🔴 अपना 1 साल वाला एनेलिटिक्स टोकन नीचे दिए गए डबल कोट्स (" ") के बीच पेस्ट करें
-TOKEN = "YOUR_1_YEAR_ANALYTICS_TOKEN"
+TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI4Q0JSR0giLCJqdGkiOiI2YWMzZGU0Nzc3YjdjMTI5OTk5MDNlYmUiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzkxMjIxMzE5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjI3NzM2MDB9.vyB_Fo2XKKKrKamO5g68C48f6WG1j4Hq302Auj65pCw"
 
 # 2. चारों मुख्य इंडेक्स की लिस्ट
 INDEX_MAP = {
