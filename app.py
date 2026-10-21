@@ -172,21 +172,25 @@ if live_ltp > 0:
     with tab2:
         st.subheader(f"⚡ {selected_display_name} Near-Month Derivative Matrix")
         
-        atm_strike = int(round(live_ltp / (50 if "NIFTY" in selected_display_name and "BANK" not in selected_display_name else 100)) * (50 if "NIFTY" in selected_display_name and "BANK" not in selected_display_name else 100))
-        strikes = [atm_strike - (100 if "BANK" in selected_display_name else 50) * i for i in range(-3, 4)]
+        step_value = 50 if "NIFTY" in selected_display_name and "BANK" not in selected_display_name else 100
+        atm_strike = int(round(live_ltp / step_value) * step_value)
+        
+        strike_diff = 100 if "BANK" in selected_display_name else 50
+        strikes = [atm_strike - strike_diff * i for i in range(-3, 4)]
         strikes.sort()
         
         op_data = []
         for s in strikes:
-            ce_ltp = round((live_ltp - s) * 0.9 + 50 if live_ltp > s else 30 + (s - live_ltp)*0.1, 2)
-            pe_ltp = round((s - live_ltp) * 0.9 + 50 if s > live_ltp else 30 + (live_ltp - s)*0.1, 2)
+            ce_value = round((live_ltp - s) * 0.9 + 50 if live_ltp > s else 30 + (s - live_ltp) * 0.1, 2)
+            pe_value = round((s - live_ltp) * 0.9 + 50 if s > live_ltp else 30 + (live_ltp - s) * 0.1, 2)
+            
             op_data.append({
                 "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2),
-                "CALL LTP (₹)": max(ce_ltp, 0.5),
+                "CALL LTP (₹)": max(ce_value, 0.5),
                 "STRIKE PRICE": s,
-                "PUT LTP (₹)": max(pe_ltp, 0.5),
+                "PUT LTP (₹)": max(pe_value, 0.5),
                 "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
             })
             
         df_oc = pd.DataFrame(op_data)
-        st.dataframe(df_oc.style.format({
+        
