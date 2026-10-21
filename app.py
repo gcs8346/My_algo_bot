@@ -23,7 +23,7 @@ if 'entry_price' not in st.session_state: st.session_state.entry_price = 0.0
 if 'current_sl' not in st.session_state: st.session_state.current_sl = 0.0
 if 'highest_price_seen' not in st.session_state: st.session_state.highest_price_seen = 0.0
 
-# 🚨 अपस्टॉक्स API के लिए बिल्कुल सही और ऑफिशियल अप्परकेस (UPPERCASE) मैपिंग
+# अपस्टॉक्स API के लिए बिल्कुल सही और ऑफिशियल अप्परकेस (UPPERCASE) मैपिंग
 watchlist = {
     "NSE NIFTY 50": "NSE_INDEX:NIFTY 50",
     "NSE BANK NIFTY": "NSE_INDEX:NIFTY BANK",
@@ -44,7 +44,7 @@ with col_tok1:
     ACCESS_TOKEN = st.text_input("अपना Upstox Access Token यहाँ पेस्ट करें:", type="password")
 
 # ==============================================================================
-# 🔌 DIRECT LIVE API REFRESH FUNCTION (UPPERCASE CASE-INSENSITIVE)
+# 🔌 DIRECT LIVE API REFRESH FUNCTION
 # ==============================================================================
 def get_live_ltp_from_upstox(token, instrument_key):
     try:
@@ -56,7 +56,6 @@ def get_live_ltp_from_upstox(token, instrument_key):
         api_response = api_instance.ltp(symbol=instrument_key.upper(), api_version='2.0')
         
         if api_response and api_response.data:
-            # अपस्टॉक्स कीस (Keys) को दोनों केस में चेक करना
             for response_key in api_response.data.keys():
                 if response_key.upper() == instrument_key.upper():
                     return float(api_response.data[response_key].last_price)
@@ -68,7 +67,7 @@ def get_live_ltp_from_upstox(token, instrument_key):
 # 🎯 SECTION 2: INSTRUMENT SELECTION & LTP CAPTURE
 # ==============================================================================
 st.header("🎯 ट्रेडिंग इंस्ट्रूमेंट का चयन करें")
-selected_display_name = st.selectbox("आप किसमें ट्रेड/एनालिसिस करना चाहते हैं? लिस्ट से चुनें:", list(watchlist.keys()))
+selected_display_name = st.selectbox("आप किसमें trade/analysis करना चाहते हैं? लिस्ट से चुनें:", list(watchlist.keys()))
 target_key = watchlist[selected_display_name]
 
 live_ltp = 0.0
@@ -194,12 +193,12 @@ with tab2:
         
         op_data.append({
             "CALL OI (Lakhs)": round(np.random.uniform(5, 45), 2),
-            "CALL LTP (₹)": max(ce_value, 0.5),
+            "CALL LTP": f"Rs. {max(ce_value, 0.5):.2f}",
             "STRIKE PRICE": s,
-            "PUT LTP (₹)": max(pe_value, 0.5),
+            "PUT LTP": f"Rs. {max(pe_value, 0.5):.2f}",
             "PUT OI (Lakhs)": round(np.random.uniform(5, 45), 2)
         })
         
     df_oc = pd.DataFrame(op_data)
-    st.dataframe(
-        df_oc.style.format({
+    
+    # 🚨 पूरी तरह से सुरक्षित डिस्प्ले - बिना किसी डिक्शनरी स्टाइलिंग के ताकि सिंटैक्स एरर कभी न आए!
