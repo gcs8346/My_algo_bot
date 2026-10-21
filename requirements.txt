@@ -7,3 +7,4 @@ upstox-python-sdk
 python-dotenv
 websockets
 websocket-client
+streamlit-autorefresh
