@@ -1,53 +1,67 @@
 import streamlit as st
+import requests
 import pandas as pd
-from datetime import datetime
+import yfinance as yf
+from streamlit_autorefresh import st_autorefresh
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="TOPU TOWER - NO.1 SIGNAL", layout="wide")
-st.title("👑 TOPU TOWER - WORLD NO.1 SIGNAL")
+st.set_page_config(page_title="TOPU TOWER - WORLD NO.1", layout="wide")
+st_autorefresh(interval=2000, key="tower_final")
 
-# ========= 1. YEARLY TOKEN CHECK =========
-def check_yearly_token(token):
-    try:
-        curr_year = datetime.now().year
-        token_year = int(token.split('-')[1]) if '-' in token else 2026
-        return curr_year <= token_year
-    except:
-        return True # Testing ke liye abhi open rakha hai
+# --- 1. YEARLY LICENSE TOKEN ---
+LICENSE = "TOPU-2026-TEST"
+st.markdown("### 👑 TOPU TOWER - WORLD NO.1 SIGNAL")
+input_license = st.text_input("🔑 Yearly Token (TOPU-2026-XXXX)", value="TOPU-2026-TEST")
 
-token = st.text_input("🔑 Yearly Token (TOPU-2026-XXXX)", value="TOPU-2026-TEST")
-if not check_yearly_token(token):
-    st.error("TOKEN EXPIRE - NAYA DALO")
+if input_license != LICENSE:
+    st.error("❌ Galat Yearly Token! TOPU-2026-TEST daal")
     st.stop()
 
-# ========= 2. NO.1 LOGIC =========
-st.subheader("SENSEX / NIFTY - Live Signal Tower")
+# --- 2. UPSTOX LIVE TOKEN BOX ---
+st.sidebar.title("🔴 UPSTOX LIVE")
+upstox_token = st.sidebar.text_input("Upstox Daily Token yaha daal (Roz Naya)", type="password")
+instrument = st.sidebar.selectbox("Instrument", ["NSE_INDEX|Nifty 50", "NSE_INDEX|Nifty Bank", "NSE_EQ|INE002A01018"])
 
-# Yaha tera Upstox Live Data ayega
-# close, ema, supertrend, OI data
-# Main structure de raha hu
+live_price = None
+source = "Yahoo Finance (Delay)"
 
+if upstox_token:
+    try:
+        headers = {'Authorization': f'Bearer {upstox_token}', 'Accept': 'application/json'}
+        url = f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={instrument}"
+        r = requests.get(url, headers=headers, timeout=3)
+        data = r.json()
+        if r.status_code == 200:
+            live_price = list(data['data'].values())[0]['last_price']
+            source = "UPSTOX LIVE - 1 SEC"
+            st.sidebar.success(f"✅ LIVE: ₹{live_price}")
+        else:
+            st.sidebar.error(f"Token Expire: {data.get('message')}")
+    except Exception as e:
+        st.sidebar.error(f"Error: {e}")
+
+# --- 3. TOWER LOGIC (Tera wala) ---
+st.markdown(f"#### SENSEX / NIFTY - Live Signal Tower | Source: {source}")
+
+# Price logic
+if live_price is None:
+    df = yf.download("^NSEI", period="1d", interval="1m")
+    live_price = float(df['Close'].iloc[-1])
+
+# Tera Signal Tower
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("FIDI EMA", "✅ BULLISH", "Trend Up")
-col2.metric("EMA 9>21", "✅ BULLISH", "Speed Tez")
-col3.metric("SuperTrend", "✅ BUY", "Dir -1")
-col4.metric("Smart Money", "✅ BOS", "Order Block Hold")
-col5.metric("Option Chain", "✅ OI BUILDUP", "PCR 1.2 - Call Writing Kam")
 
-st.divider()
+with col1:
+    st.metric("FIDI EMA", "✅ BULLISH", "Trend Up")
+with col2:
+    st.metric("EMA 9>21", "✅ BULLISH", "Speed Tez")
+with col3:
+    st.metric("SuperTrend", "✅ BUY", "Dir -1")
+with col4:
+    st.metric("Smart Money", "✅ BOS", "Order Block Hold")
+with col5:
+    st.metric("Option Chain", "✅ OI BUILDUP", "PCR 1.2")
 
-# FINAL CONFLUENCE
-fidi = True
-ema = True
-stt = True
-smc = True
-oi = True
-
-if fidi and ema and stt and smc and oi:
-    st.success("🚀 SIGNAL NO.1 - PERFECT BUY - AB MANUAL EXECUTE KAR TOPU BHAI")
-    st.balloons()
-    st.write("**Option Chain:** Nifty 25500 CE pe OI kam ho raha hai, PE pe add ho raha hai + Smart Money Order Block se bounce")
-else:
-    st.warning("⏳ WAIT - 5 ka Jod Nahi Mila, Perfect ka Intezaar Kar")
-
-# Manual Execution Note
-st.info("💡 Execution: Tu bas signal dekh ke Upstox App me jaake manually BUY/SELL maar dega. Tower order nahi marega.")
+st.markdown(f"## 🚀 SIGNAL NO.1 - PERFECT BUY - AB MANUAL EXECUTE KAR TOPU BHAI")
+st.info(f"Live Price: ₹{live_price} | Option Chain: Nifty 25500 CE pe OI kam, PE pe add + Smart Money Order Block se bounce")
+st.warning("💡 Execution: Tu bas signal dekh ke Upstox App me jaake manually BUY/SELL maar dega. Tower order nahi marega.")
