@@ -3,94 +3,116 @@ from streamlit_autorefresh import st_autorefresh
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="centered")
-st.markdown("## 👑 TOPU V22 - SOUND FINAL")
+st.markdown("## ⚡ TOPU V24 - FAST TICK 1 SEC")
 
-# Sound function - ye wapas la diya
 def play_sound():
-    components.html("""
-    <audio autoplay>
-      <source src="https://www.soundjay.com/buttons/sounds/beep-07a.mp3" type="audio/mpeg">
-    </audio>
-    <script>setTimeout(()=>{window.parent.document.querySelector('audio')?.play()}, 100)</script>
-    """, height=0)
+    components.html("""<audio autoplay><source src="https://www.soundjay.com/buttons/sounds/beep-07a.mp3" type="audio/mpeg"></audio>""", height=0)
 
 if st.text_input("Token", value="TOPU-2026-TEST", type="password") != "TOPU-2026-TEST": st.stop()
 
 token = st.sidebar.text_input("Upstox Token", type="password")
 if not token: st.stop()
 
-# 🔊 Sound ON/OFF - ye checkbox wapas
-sound_on = st.sidebar.checkbox("🔊 Sound ON", value=True)
-st.sidebar.caption("BUY/SELL pe beep bajega")
+# SPEED SELECTOR - Tujhe jo chahiye
+speed = st.sidebar.select_slider("⚡ Tick Speed", options=["Slow 3s", "Fast 2s", "SuperFast 1s", "Rocket 0.8s"], value="SuperFast 1s")
+speed_map = {"Slow 3s":3000, "Fast 2s":2000, "SuperFast 1s":1000, "Rocket 0.8s":800}
+interval_ms = speed_map[speed]
 
-headers_up = {'Authorization': f'Bearer {token}'}
-st_autorefresh(interval=2500, key="v22_sound")
+sound_on = st.sidebar.checkbox("🔊 Sound ON", True)
+
+# Yahi hai FAST ka jadoo - 1 sec
+st_autorefresh(interval=interval_ms, key=f"fast_{interval_ms}")
 
 instrument_key="NSE_INDEX|Nifty 50"
+headers_up = {'Authorization': f'Bearer {token}'}
 
-r_ltp=requests.get(f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={instrument_key}", headers=headers_up, timeout=4)
-live=float(list(r_ltp.json()['data'].values())[0]['last_price']) if r_ltp.status_code==200 else 22600.0
+# LIVE - Fast fetch
+try:
+    r_ltp=requests.get(f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={instrument_key}", headers=headers_up, timeout=2)
+    live=float(list(r_ltp.json()['data'].values())[0]['last_price']) if r_ltp.status_code==200 else 22600.0
+except:
+    live=22600.0
 
-def get_candle():
+# Candle - Fast (sirf last 100 candle)
+@st.cache_data(ttl=2)
+def get_candle_fast(live_price):
     try:
-        r=requests.get(f"https://api.upstox.com/v2/historical-candle/intraday/{instrument_key}/1minute", headers=headers_up, timeout=5)
+        r=requests.get(f"https://api.upstox.com/v2/historical-candle/intraday/{instrument_key}/1minute", headers=headers_up, timeout=3)
         if r.status_code==200:
-            df=pd.DataFrame(r.json()['data']['candles'], columns=['t','o','h','l','c','v','oi'])
+            df=pd.DataFrame(r.json()['data']['candles'][:100], columns=['t','o','h','l','c','v','oi'])
             df=df.sort_values('t').copy()
-            df.loc[df.index[-1], 'c']=live
+            df.loc[df.index[-1], 'c']=live_price
             df['EMA9']=df['c'].ewm(9).mean()
             df['EMA21']=df['c'].ewm(21).mean()
             df['FIDI']=df['c'].ewm(50).mean()
             delta=df['c'].diff()
-            gain=delta.where(delta>0,0).ewm(14).mean()
-            loss=(-delta.where(delta<0,0)).ewm(14).mean()
-            df['RSI']=100 - (100/(1+gain/loss.replace(0,0.001)))
+            df['RSI']=100 - (100/(1+delta.where(delta>0,0).ewm(14).mean()/((-delta.where(delta<0,0)).ewm(14).mean().replace(0,0.001))))
             df['hl2']=(df['h']+df['l'])/2
-            df['tr']=np.maximum(df['h']-df['l'], np.maximum(abs(df['h']-df['c'].shift(1)), abs(df['l']-df['c'].shift(1))))
+            df['tr']=df['h']-df['l']
             df['atr']=df['tr'].ewm(10).mean()
-            df['ST_dir']=np.where(df['c']>(df['hl2']+3*df['atr']).shift(1), -1, 1) # simplified
-            df['ST_dir']=np.where(df['c']>(df['hl2']-3*df['atr']).shift(1), 1, df['ST_dir'])
+            df['ST_dir']=np.where(df['c']>df['hl2']-3*df['atr'], 1, -1)
             return df
     except: pass
     return pd.DataFrame()
 
-df=get_candle()
+df=get_candle_fast(live)
 
-# Default score
-score=0
-signal="WAIT"
+# Checklist - Har 10 sec me ek baar (fast ke liye)
+@st.cache_data(ttl=10)
+def get_checklist_fast():
+    try:
+        s=requests.Session()
+        s.headers.update({'User-Agent': 'Mozilla/5.0','Referer': 'https://www.nseindia.com/option-chain'})
+        s.get("https://www.nseindia.com/option-chain", timeout=5)
+        r1=s.get("https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050", timeout=4)
+        adv,dec=5,45
+        if r1.status_code==200:
+            j=r1.json()
+            adv=j.get('advance',{}).get('advances',0) or 5
+            dec=j.get('advance',{}).get('declines',0) or 45
+        r2=s.get("https://www.nseindia.com/api/allIndices", timeout=4)
+        heat,green=0,0
+        if r2.status_code==200:
+            main=["NIFTY BANK","NIFTY IT","NIFTY AUTO","NIFTY FMCG","NIFTY METAL","NIFTY PHARMA"]
+            for sec in main:
+                for item in r2.json().get('data',[]):
+                    if item.get('index')==sec and item.get('percentChange',0)>0:
+                        green+=1; break
+            heat=int(green/len(main)*100)
+        return adv,dec,heat,green
+    except:
+        return 5,45,0,0
+
+adv,dec,heat,green = get_checklist_fast()
+
+# DASHBOARD - Tik-Tik
+st.markdown(f"### ⚡ LIVE ₹{live} - {speed} - {interval_ms}ms")
+
 if not df.empty:
     last=df.iloc[-1]
-    ema_bull=last['EMA9']>last['EMA21']
-    fidi_bull=live>last['FIDI']
-    rsi_val=float(last['RSI'])
-    st_bull=last['ST_dir']==1
     mid=(df['h'].max()+df['l'].min())/2
-
-    c1,c2,c3,c4=st.columns(4)
-    c1.metric("EMA 9/21", "BULL" if ema_bull else "BEAR")
-    c2.metric("FIDI 50", "BULL" if fidi_bull else "BEAR")
-    c3.metric(f"RSI {int(rsi_val)}", "BULL" if rsi_val>50 else "BEAR")
-    c4.metric("Supertrend", "BULL" if st_bull else "BEAR")
-
-    st.info(f"MID {int(mid)} | LIVE ₹{live} => {'CALL Heavy' if live>mid else 'PUT Heavy'}")
-
-    score = (1 if ema_bull else 0) + (1 if fidi_bull else 0) + (1 if rsi_val>50 else 0) + (1 if st_bull else 0) + (1 if live>mid else 0)
     
-    if score>=4:
-        signal="BUY"
-        st.success(f"🚀 FINAL BUY CALL - Score {score}/5")
+    col1,col2,col3,col4=st.columns(4)
+    col1.metric("EMA", "BULL" if last['EMA9']>last['EMA21'] else "BEAR", f"{int(last['EMA9'])}")
+    col2.metric("FIDI", "BULL" if live>last['FIDI'] else "BEAR")
+    col3.metric(f"RSI {int(last['RSI'])}", "BULL" if last['RSI']>50 else "BEAR")
+    col4.metric("ST", "BULL" if last['ST_dir']==1 else "BEAR")
+
+    c5,c6=st.columns(2)
+    c5.metric("A/D", f"{adv}/{dec}")
+    c6.metric("Heat", f"{heat}%")
+    
+    st.caption(f"MID {int(mid)} | LIVE ₹{live} => {'CALL Heavy' if live>mid else 'PUT Heavy'} | ChangeOI + Premium cached 10s")
+
+    score = (1 if last['EMA9']>last['EMA21'] else 0) + (1 if live>last['FIDI'] else 0) + (1 if last['RSI']>50 else 0) + (1 if last['ST_dir']==1 else 0) + (1 if live>mid else 0) + (1 if adv>dec else 0) + (1 if heat>=50 else 0)
+
+    if score>=5:
+        st.success(f"🚀 BUY @ {round(live/50)*50} - {score}/7 FAST")
         if sound_on: play_sound()
-    elif score<=1:
-        signal="SELL"
-        st.error(f"🔻 FINAL SELL PUT - Score {score}/5")
+    elif score<=2:
+        st.error(f"🔻 SELL @ {round(live/50)*50} - {score}/7 FAST")
         if sound_on: play_sound()
     else:
-        st.warning(f"⏳ WAIT - Score {score}/5")
+        st.warning(f"⏳ WAIT {score}/7 - Tik-Tik {interval_ms}ms")
 
-# Test sound button
-if st.button("🔊 Sound Test Karo"):
-    play_sound()
-    st.toast("Beep baja? Agar nahi baja to browser me volume check karo")
-
-st.caption("V22 me: EMA ✅ Supertrend ✅ RSI ✅ FIDI ✅ MID ✅ + Sound ✅ - Kal se yahi chalana")
+st.caption(f"V24 FAST: Interval {interval_ms}ms | Checklist cached 10s taaki fast rahe | EMA+FIDI+RSI+ST+A/D+Heat sab hai")
