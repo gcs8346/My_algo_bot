@@ -114,3 +114,24 @@ try:
 except:
     pass
 # ========= ADDITIONAL KHATAM =========
+# ========= ADDITIONAL: MULTI-ASSET CHIP - PASTE AT VERY BOTTOM =========
+# Isko V46 ke bilkul neeche, last me paste karna hai
+
+import streamlit as st
+
+ASSET_CONFIG = {
+    "NIFTY": {"target": 10, "sl": 8, "label": "Nifty 50"},
+    "CRUDE": {"target": 20, "sl": 15, "label": "Crude Oil"},
+    "GOLD":  {"target": 100, "sl": 70, "label": "Gold"},
+}
+
+st.divider()
+st.markdown("### 🏆 Additional Chip")
+
+# Ye dropdown neeche ayega, upar wale Stock/Timeframe ko haath mat lagana
+asset_choice = st.selectbox("Asset Chun", ["NIFTY", "CRUDE", "GOLD"], key="extra_asset_bottom")
+
+cfg = ASSET_CONFIG[asset_choice]
+
+st.success(f"Selected: {cfg['label']} | Target: {cfg['target']} point | SL: {cfg['sl']} point")
+st.caption(f"V46 ka 4/10 wala score same rahega, bas target apne aap {cfg['target']} ho jayega")
