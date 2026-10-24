@@ -6,18 +6,20 @@ from urllib.parse import quote
 from datetime import datetime, timedelta
 import time
 
-st.set_page_config(layout="wide", page_title="Topu V38 FINAL")
-st.title("🔥 Topu V38 - BACKTEST BUTTON WALA FINAL LOCK")
+st.set_page_config(layout="wide", page_title="Topu V38.1 FIX")
+st.title("🔥 Topu V38.1 - BACKTEST BUTTON FIX LOCK")
 
 # ===== SIDEBAR =====
 st.sidebar.header("🔑 UPSTOX TOKEN BOX")
 upstox_token = st.sidebar.text_input("Upstox Access Token", type="password")
 is_token = len(upstox_token.strip()) > 30 if upstox_token else False
-st.sidebar.write("🟢 TOKEN ON" if is_token else "🔴 TOKEN DALO")
+if is_token:
+    st.sidebar.success("🟢 TOKEN ON")
+else:
+    st.sidebar.error("🔴 TOKEN DALO")
 
 st.sidebar.header("🔊 SOUND BOX V17")
 enable_sound = st.sidebar.checkbox("Sound ON", True)
-sound_entry = "https://cdn.pixabay.com/audio/2022/03/24/audio_1b9bd41700.mp3"
 
 upstox_index_map = {
     "NIFTY 50": "NSE_INDEX|Nifty 50", "BANK NIFTY": "NSE_INDEX|Nifty Bank",
@@ -30,14 +32,16 @@ stock_isin_map = {
 }
 
 st.sidebar.header("📋 WATCHLIST BOX")
-watch_input = st.sidebar.text_area("Watchlist", "NIFTY 50, BANK NIFTY, RELIANCE, TCS", height=80)
+watch_input = st.sidebar.text_area("Watchlist comma se", "NIFTY 50, BANK NIFTY, RELIANCE, TCS", height=80)
+
 mode = st.sidebar.radio("Main Chart Kiska?", ["INDEX","STOCK"], index=0)
+
 if mode=="INDEX":
-    sel_idx = st.sidebar.selectbox("Index Chuno", list(upstox_index_map.keys()))
+    sel_idx = st.sidebar.selectbox("Index Chuno", list(upstox_index_map.keys()), index=0)
     final_label = sel_idx
     final_key_fixed = upstox_index_map[sel_idx]
 else:
-    sel_stock = st.sidebar.selectbox("Stock Chuno", list(stock_isin_map.keys()))
+    sel_stock = st.sidebar.selectbox("Stock Chuno", list(stock_isin_map.keys()), index=0)
     custom = st.sidebar.text_input("Ya Likh Do (RELIANCE)", "").strip().upper()
     final_label = custom if custom else sel_stock
     final_key_fixed = stock_isin_map.get(final_label) if not custom else None
@@ -148,7 +152,10 @@ for lbl in watch_labels[:6]:
         df_w=analyze_df(df_w)
         last_w=df_w.iloc[-1]
         heat=int(last_w['HEAT'])
-        status="🔥 5/5 BUY" if last_w['ALL5'] else f"{heat}/5"
+        if last_w['ALL5']:
+            status="🔥 5/5 BUY"
+        else:
+            status=f"{heat}/5 WAIT"
     watch_rows.append({"Symbol":lbl,"LTP":ltp,"HEAT":heat,"Status":status})
 if watch_rows:
     st.dataframe(pd.DataFrame(watch_rows), use_container_width=True)
@@ -166,18 +173,20 @@ last=df_main.iloc[-1]
 c1,c2,c3,c4=st.columns(4)
 c1.metric(f"{final_label} Price", f"{last['Close']:.2f}")
 c2.metric("HEAT", f"{int(last['HEAT'])}/5")
-c3.success("🔥 5/5 BUY") if last['ALL5'] else c3.warning(f"WAIT {int(last['HEAT'])}/5")
+
+# YAHI FIX KIYA HAI - IF ELSE
+if last['ALL5']:
+    c3.success("🔥 5/5 BUY")
+else:
+    c3.warning(f"WAIT {int(last['HEAT'])}/5")
+
 c4.metric("RSI", f"{last['RSI']:.0f}")
 
-# ===== YAHAN HAI TERA BUTTON =====
+# BACKTEST BUTTON
 st.divider()
 st.subheader("📊 BACKTEST - BUTTON WALA")
 
-col_btn1, col_btn2 = st.columns([1,3])
-with col_btn1:
-    backtest_btn = st.button("🔍 BACKTEST BUTTON DABA - PICHLA DATA DEKH", type="primary", use_container_width=True)
-with col_btn2:
-    st.caption("Dabayega to samne ayega - pichle 60 din me kya hua tha")
+backtest_btn = st.button("🔍 BACKTEST BUTTON DABA - PICHLA DATA DEKH", type="primary", use_container_width=True)
 
 if backtest_btn:
     st.session_state['show_backtest'] = True
@@ -193,10 +202,15 @@ if st.session_state.get('show_backtest', False):
                     entry = df_bt.iloc[i]['Close']
                     future_close = df_bt.iloc[i+5]['Close']
                     pnl_pct = (future_close-entry)/entry*100
-                    trades.append({"Date":str(df_bt.index[i].date()),"Entry":round(entry,2),"5 Din Baad":round(future_close,2),"PnL %":round(pnl_pct,2),"Result":"✅ WIN" if pnl_pct>0.5 else "❌ LOSS"})
+                    if pnl_pct > 0.5:
+                        result_str = "✅ WIN"
+                    else:
+                        result_str = "❌ LOSS"
+                    trades.append({"Date":str(df_bt.index[i].date()),"Entry":round(entry,2),"5 Din Baad":round(future_close,2),"PnL %":round(pnl_pct,2),"Result":result_str})
             if trades:
                 df_trades=pd.DataFrame(trades)
-                total=len(df_trades); wins=len(df_trades[df_trades['Result']=="✅ WIN"])
+                total=len(df_trades)
+                wins=len(df_trades[df_trades['Result']=="✅ WIN"])
                 win_rate=wins/total*100 if total>0 else 0
                 m1,m2,m3,m4=st.columns(4)
                 m1.metric("Total 5/5 Trades", total)
@@ -205,14 +219,12 @@ if st.session_state.get('show_backtest', False):
                 m4.metric("Avg Profit", f"{df_trades['PnL %'].mean():.2f}%")
                 st.success(f"👇 Ye raha pura data - {final_label} me pichle 60 din ka")
                 st.dataframe(df_trades, use_container_width=True)
-                if win_rate>=60:
-                    st.success(f"🔥 BEST HAI - {win_rate:.0f}% Win Rate hai")
             else:
                 st.warning("Pichle 60 din me isme 5/5 ka signal hi nahi bana")
         else:
-            st.error("Backtest data nahi aaya - dusra stock try kar")
+            st.error("Backtest data nahi aaya")
 else:
-    st.info("👆 Upar wala button daba - tere saamne data aa jayega ki kya kya hua tha")
+    st.info("👆 Button daba - tere saamne data aa jayega ki kya kya hua tha")
 
 # CHART
 fig=go.Figure()
@@ -222,8 +234,10 @@ fig.add_trace(go.Scatter(x=df_main.index, y=df_main['EMA21'], name="EMA21"))
 fig.add_trace(go.Scatter(x=df_main.index, y=df_main['EMA50'], name="EMA50"))
 fig.add_trace(go.Scatter(x=df_main[df_main['ENTRY']].index, y=df_main[df_main['ENTRY']]['Low']*0.998, mode='markers', marker=dict(symbol='triangle-up', size=15, color='green'), name="5/5 BUY"))
 fig.add_trace(go.Scatter(x=df_main[df_main['EXIT']].index, y=df_main[df_main['EXIT']]['High']*1.002, mode='markers', marker=dict(symbol='triangle-down', size=15, color='red'), name="EXIT"))
-fig.update_layout(height=650, xaxis_rangeslider_visible=False, title=f"{final_label} - {timeframe_ui} - V38")
+fig.update_layout(height=650, xaxis_rangeslider_visible=False, title=f"{final_label} - {timeframe_ui} - V38.1 FIX")
 st.plotly_chart(fig, use_container_width=True)
+
+st.caption(f"V38.1 FIX LOCK | {final_label} | {tick_sec}SEC | Pure Token")
 
 if auto_tick:
     time.sleep(tick_sec)
