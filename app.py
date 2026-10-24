@@ -78,3 +78,39 @@ if st.button(f"🚀 {sel_name} CHECK", type="primary", use_container_width=True)
 
 if auto_tick:
     time.sleep(tick_speed); st.rerun()
+# ======================================================
+# YAHAN TAK TERA V46 FINAL LOCK KHATAM - ISKE UPAR KUCH MAT CHHEDNA
+# ======================================================
+
+# ========= ADDITIONAL: 10 PT SCALP CHIP - V46 ke saath attach =========
+def scalp_10pt_filter(df, total_score, fvg_status):
+    try:
+        last = df.iloc[-1]
+        close = last['close']
+        ema9 = last['ema9']
+        ema21 = last['ema21']
+
+        big_trend_up = ema9 > ema21
+        pullback = abs(close - ema9) / close < 0.0015  # EMA9 ke paas
+        tower_strong = total_score >= 8
+        fvg_ok = '✅' in str(fvg_status) or fvg_status == True
+        bullish = close > last.get('open', close)
+
+        if big_trend_up and pullback and tower_strong and fvg_ok and bullish:
+            return "🔥 SCALP READY - 10 PT TARGET | SL 8pt"
+        elif pullback and tower_strong:
+            return "⚠️ SCALP WATCH - EMA9 pe hai"
+        else:
+            return ""
+    except:
+        return ""
+
+# --- Ye display wala part hai ---
+try:
+    # df_3min, TOTAL, SM3_FVG ye teeno tere V46 me pehle se hain
+    scalp_msg = scalp_10pt_filter(df_3min, TOTAL, SM3_FVG)
+    if scalp_msg:
+        st.success(scalp_msg)
+except:
+    pass
+# ========= ADDITIONAL KHATAM =========
