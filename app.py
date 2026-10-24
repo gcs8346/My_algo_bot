@@ -17,7 +17,7 @@ auto_tick = st.sidebar.checkbox(f"🔴 LIVE ON ({tick_speed}s)")
 sound_on = st.sidebar.checkbox("🔊 Sound ON (10/10 pe)", value=True)
 
 # STOCKS + TIMEFRAME - jo tune bola tha 1,3,2,3,4,5 minute wala
-STOCKS = {"Nifty 50":"NSE_INDEX|Nifty 50","Bank Nifty":"NSE_INDEX|Nifty Bank","Sensex":"BSE_INDEX|SENSEX","RELIANCE":"NSE_EQ|INE002A01018","TCS":"NSE_EQ|INE467B01029","INFY":"NSE_EQ|INE009A01021","HDFCBANK":"NSE_EQ|INE040A01034","ICICIBANK":"NSE_EQ|INE090A01021","SBIN":"NSE_EQ|INE062A01020","GOLD":"MCX_FO|GOLD26DECFUT","CRUDEOIL":"MCX_FO|CRUDEOIL26NOVFUT"}
+STOCKS = {"Nifty 50":"NSE_INDEX|Nifty 50","Bank Nifty":"NSE_INDEX|Nifty Bank","Sensex":"BSE_INDEX|SENSEX","RELIANCE":"NSE_EQ|INE002A01018","TCS":"NSE_EQ|INE467B01029","INFY":"NSE_EQ|INE009A01021","HDFCBANK":"NSE_EQ|INE040A01034","ICICIBANK":"NSE_EQ|INE090A01021","SBIN":"NSE_EQ|INE062A01020","GOLD":"MCX_FO|GOLDM26NOVFUT","CRUDEOIL":"MCX_FO|CRUDEOIL26NOVFUT"}
 sel_name = st.sidebar.selectbox("Stock", list(STOCKS.keys()))
 sel_inst = STOCKS[sel_name]
 tf = st.sidebar.selectbox("Timeframe", ["1minute","3minute","5minute","15minute","30minute","day"], index=2)
