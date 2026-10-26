@@ -56,7 +56,6 @@ def load_latest_mcx_keys():
                 # सबसे पास वाली एक्टिव एक्सपायरी चुनें
                 filtered = filtered.sort_values(by='expiry')
                 row = filtered.iloc[0]
-                # यह असली वर्किंग नंबर की (जैसे MCX_FO|578912) बाहर निकालेगा
                 return {"key": str(row['instrument_key']), "name": str(row['trading_symbol'])}
             return None
 
@@ -70,7 +69,7 @@ def load_latest_mcx_keys():
             return res
         raise Exception("CSV Read Fallback")
     except:
-        # आज रात के लाइव कॉन्ट्रैक्ट्स के बिल्कुल सटीक संख्यात्मक टोकन नंबर्स का बुलेटप्रूफ बैकअप
+        # बिल्कुल सटीक संख्यात्मक टोकन नंबर्स का बुलेटप्रूफ बैकअप
         return {
             "GOLD": {"key": "MCX_FO|495213", "name": "GOLD 26DEC FUT"},
             "SILVER": {"key": "MCX_FO|495214", "name": "SILVER 26DEC FUT"},
@@ -135,7 +134,7 @@ with live_box.container():
             
         st.info(f"📈 Nifty 50 Live: {nifty_val}")
         
-        # लाइव डेटा डिब्बा (अब यह खाली नहीं रहेगा)
+        # लाइव डेटा डिब्बा
         st.subheader("🔍 Live API Data Stream (Debug)")
         st.json(prices)
         
