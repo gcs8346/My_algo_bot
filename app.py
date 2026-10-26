@@ -5,70 +5,25 @@ import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="TOWER V70 FINAL", layout="wide")
+st.title("TOWER V70 - FINAL")
 
-# --- STYLE ---
-st.markdown("""
-<style>
-.stApp {background:#0a0a0a; color:white;}
-.ganesh-box {text-align:center; background:#1a1a1a; padding:15px; border-radius:15px; border:1px solid #FFD700; margin-bottom:15px;}
-.card {background:#151515; padding:14px; border-radius:12px; border:1px solid #333; text-align:center;}
-.bull {background:#00ff88; color:black; padding:14px; border-radius:12px; font-weight:900; font-size:22px; text-align:center; margin-top:12px;}
-.bear {background:#ff0040; color:white; padding:14px; border-radius:12px; font-weight:900; font-size:22px; text-align:center; margin-top:12px;}
-</style>
-""", unsafe_allow_html=True)
-
-# --- GANESH HEADER - BINA PIL KE ---
-st.markdown('<div class="ganesh-box">', unsafe_allow_html=True)
-try:
-    st.image("ganesh.png", use_container_width=True)
-except:
-    try:
-        st.image("image_20261026_171405.webp", use_container_width=True)
-    except:
-        st.markdown("### 🙏 जय श्री गणेशाय नमः 🙏")
-        st.markdown("### Jai Shri Ganeshay Namah")
-
-st.markdown("#### 🏰 TOWER V70 - FINAL - NUMBER 1")
-st.markdown("##### ॐ गं गणपतये नमः")
-st.markdown('</div>', unsafe_allow_html=True)
-
-def beep_box():
-    st.markdown("""
-    <div style="border:2px solid #00ff88; background:#111; padding:10px; border-radius:12px; text-align:center;">
-    <b style="color:#00ff88;">🔊 SIGNAL BAJA!</b>
-    <audio autoplay controls style="width:100%; margin-top:6px;">
-    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-    </audio></div>""", unsafe_allow_html=True)
-
-with st.container(border=True):
-    c1,c2,c3 = st.columns(3)
-    sound_on = c1.toggle("Sound ON", value=True, key="sound_v70")
-    c2.caption("Phone volume full rakho")
-    if c3.button("🔊 TEST BEEP", key="test_v70"):
-        beep_box()
-
-# --- TOKEN FIX - AB ATKEGA NAHI ---
-raw = st.text_input("🔑 Upstox Token (Roz Naya)", type="password", key="token_v70")
+# --- TOKEN ---
+raw = st.text_input("Upstox Token (Roz Naya)", type="password")
 if raw:
-    token = raw.strip().replace("Bearer ", "").replace("bearer ", "").replace('"','').replace("'","").strip()
-    if "last_tok" not in st.session_state or st.session_state["last_tok"] != token:
-        if sound_on: beep_box()
-        st.session_state["last_tok"] = token
+    token = raw.strip().replace("Bearer ","").replace("bearer ","").replace('"','').replace("'","").strip()
     st.session_state["tok"] = token
-    st.caption(f"Token pakda: {len(token)} chars")
 else:
-    token = st.session_state.get("tok", "")
+    token = st.session_state.get("tok","")
 
 if not token:
-    st.warning("Token daal bhai - niche wala box me")
+    st.warning("Token daal bhai")
     st.stop()
 if len(token) < 50:
-    st.error(f"Token chhota hai {len(token)} chars - pura copy kar, Bearer mat laga")
+    st.error(f"Token chhota hai {len(token)} - pura copy kar")
     st.stop()
 
 headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-
-speed = st.selectbox("Speed", ["0.1 sec (100ms)", "0.8 sec (FAST)", "2.0 sec (SAFE)"], index=1)
+speed = st.selectbox("Speed", ["0.1 sec", "0.8 sec", "2.0 sec"], index=1)
 speed_val = 0.1 if "0.1" in speed else 0.8 if "0.8" in speed else 2.0
 
 indices = ["NSE_INDEX|Nifty 50","NSE_INDEX|Nifty Bank","BSE_INDEX|Sensex"]
@@ -99,9 +54,26 @@ def get_bulk_ltp(all_keys):
     except: pass
     return {}
 
-def get_df(key):
-    ck = f"c_{key}"; tk = f"t_{key}"; now = time.time()
-    if ck in st.session_state and now - st.session_state.get(tk, 0) < 60:
-        return st.session_state[ck]
-    try:
-        r = requests.get(f"https://api
+ltp, stat = get_ltp("NSE_INDEX|Nifty 50")
+if not ltp:
+    st.error(f"LIVE fail {stat} - Token expire, naya daal")
+    st.stop()
+
+st.metric(f"Nifty 50 - {stat}", f"₹{ltp}")
+
+if st.button("BULK SCAN - 53 Stocks"):
+    all_keys = indices + stocks
+    with st.spinner("Bulk LTP..."):
+        bulk = get_bulk_ltp(all_keys)
+    if not bulk:
+        st.error("Bulk fail - 1 min ruk ke dabao")
+        st.stop()
+    res = []
+    for key in all_keys:
+        price = bulk.get(key, {}).get("last_price")
+        res.append({"Name": key.split("|")[-1], "LTP": price if price else "NO DATA"})
+    st.dataframe(pd.DataFrame(res), use_container_width=True, height=600)
+
+st.caption(f"{datetime.now().strftime('%H:%M:%S')} | {speed}")
+time.sleep(speed_val)
+st.rerun()
