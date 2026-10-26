@@ -1,94 +1,90 @@
 import streamlit as st, requests, time, pandas as pd
 from datetime import datetime
+from PIL import Image
+import os
 
-st.set_page_config(page_title="TOWER V47 BEEP", layout="wide")
+st.set_page_config(page_title="TOWER V70 GANESH", layout="wide")
 
+# --- GANESH HEADER ---
 st.markdown("""
 <style>
 .stApp {background:#0a0a0a; color:white;}
-.card {background:#151515; padding:14px; border-radius:12px; border:1px solid #333; text-align:center;}
-.bull {background:#00ff88; color:black; padding:14px; border-radius:12px; font-weight:900; font-size:22px; text-align:center; margin-top:12px;}
-.wait {background:#ffcc00; color:black; padding:14px; border-radius:12px; font-weight:900; font-size:20px; text-align:center; margin-top:12px;}
+.ganesh-box {text-align:center; background: radial-gradient(circle, #2a1a00 0%, #0a0a0a 70%); padding:15px; border-radius:20px; border:1px solid #FFD700; margin-bottom:10px;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- BEEP FUNCTION ---
-def beep():
-    st.markdown('<audio autoplay><source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg"></audio>', unsafe_allow_html=True)
+# Ganesh Photo - Top pe
+with st.container():
+    st.markdown('<div class="ganesh-box">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.8, 1])
+    with col2:
+        if os.path.exists("ganesh.png"):
+            st.image("ganesh.png", use_container_width=True)
+        elif os.path.exists("image_20261026_170940.webp"):
+            st.image("image_20261026_170940.webp", use_container_width=True)
+        else:
+            st.markdown("### 🙏 Shri Ganeshay Namah 🙏")
+        st.markdown("#### 🏰 TOWER V70 - SHRI GANESH - NUMBER 1")
+        st.markdown("##### ॐ गं गणपतये नमः | Labh hi Labh Hoga")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("### 🏰 TOWER V47 - BEEP SYSTEM ON")
+def beep_box():
+    st.markdown("""
+    <div style="border:2px solid #00ff88; background:#111; padding:10px; border-radius:12px; text-align:center;">
+    <b style="color:#00ff88;">🔊 SIGNAL BAJA! Ganesh Ji Ki Jai!</b>
+    <audio autoplay controls style="width:100%; margin-top:6px;">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    </audio></div>""", unsafe_allow_html=True)
 
-# --- TOKEN WITH BEEP ---
-raw = st.text_input("🔑 Upstox Token (Roz Naya) - Daalte hi Beep bajega", type="password", key="beep_token")
+with st.container(border=True):
+    st.markdown("#### 🔊 SOUND BOX")
+    c1,c2,c3 = st.columns(3)
+    sound_on = c1.toggle("Sound ON", value=True)
+    c2.write("Ganesh Ashirwad ON")
+    if c3.button("🔊 TEST BEEP"):
+        beep_box()
 
+# --- TOKEN ---
+raw = st.text_input("🔑 Upstox Token (Roz Naya)", type="password")
 if raw:
     token = raw.strip().replace("Bearer ","").replace("bearer ","").replace('"','').replace("'","").strip()
-    # Token naya hai to BEEP
-    if "last_beep_token" not in st.session_state or st.session_state["last_beep_token"] != token:
-        beep()
-        st.session_state["last_beep_token"] = token
-        st.success(f"Beep! Token pakda {len(token)} chars")
-    st.session_state["tok"] = token
+    if "last_tok" not in st.session_state or st.session_state["last_tok"]!=token:
+        if sound_on: beep_box()
+        st.session_state["last_tok"]=token
+        st.success(f"Ganesh Ji Beep! Token {len(token)} chars")
+    st.session_state["tok"]=token
 else:
     token = st.session_state.get("tok","")
 
-if not token or len(token) < 50:
-    st.warning("Token daal bhai - dalte hi beep bajega")
-    st.stop()
+if not token:
+    st.warning("Token daal bhai - Ganesh ji dekh rahe hain"); st.stop()
+if len(token) < 50:
+    st.error(f"Token chhota {len(token)}"); st.stop()
 
-headers = {"Authorization": f"Bearer {token}", "Accept":"application/json"}
-
-# Speed select pe bhi beep
-speed = st.selectbox("Tik-Tik Speed (Select pe beep)", ["0.1 sec (100ms)", "0.8 sec (FAST)", "2.0 sec (SAFE)"], index=1, key="speed_beep")
-if "last_speed" not in st.session_state or st.session_state["last_speed"] != speed:
-    if "last_speed" in st.session_state: # pehli baar nahi bajega
-        beep()
-    st.session_state["last_speed"] = speed
-
+headers={"Authorization":f"Bearer {token}","Accept":"application/json"}
+speed = st.selectbox("Speed", ["0.1 sec", "0.8 sec", "2.0 sec"], index=1)
 speed_val = 0.1 if "0.1" in speed else 0.8 if "0.8" in speed else 2.0
 
-def get_live_ltp(key):
+indices = ["NSE_INDEX|Nifty 50","NSE_INDEX|Nifty Bank","BSE_INDEX|Sensex"]
+stocks = ["NSE_EQ|RELIANCE","NSE_EQ|TCS","NSE_EQ|INFY","NSE_EQ|HDFCBANK"]
+
+def get_ltp(key):
     try:
-        r = requests.get("https://api.upstox.com/v3/market-quote/ltp", headers=headers, params={"instrument_key":key}, timeout=6)
+        r=requests.get("https://api.upstox.com/v3/market-quote/ltp", headers=headers, params={"instrument_key":key}, timeout=6)
         if r.status_code==200:
             d=r.json().get("data",{}).get(key,{}).get("last_price")
-            if d: return d, f"V3 OK {r.status_code}"
-        r2=requests.get("https://api.upstox.com/v2/market-quote/ltp", headers=headers, params={"instrument_key":key}, timeout=6)
-        if r2.status_code==200:
-            data=r2.json().get("data",{})
-            price=data.get(key,{}).get("last_price") if key in data else list(data.values())[0].get("last_price") if data else None
-            if price: return price, f"V2 OK {r2.status_code}"
+            if d: return d, f"OK {r.status_code}"
         return None, f"Fail {r.status_code}"
-    except Exception as e:
-        return None, str(e)
+    except Exception as e: return None, str(e)
 
-# LIVE DASH
-ltp, stat = get_live_ltp("NSE_INDEX|Nifty 50")
-if not ltp:
-    st.error(f"LIVE fail {stat}")
-    st.stop()
+ltp, stat = get_ltp("NSE_INDEX|Nifty 50")
+if not ltp: st.error(f"LIVE fail {stat}"); st.stop()
 
-c1,c2 = st.columns(2)
-c1.markdown(f'<div class="card">Nifty 50<br><b style="font-size:28px">₹{ltp}</b><br>{stat}</div>', unsafe_allow_html=True)
-c2.markdown(f'<div class="card">Status<br><b>Speed {speed}</b><br>Beep ON</div>', unsafe_allow_html=True)
+st.metric(f"Nifty 50 - {stat}", f"₹{ltp}")
+st.success(f"TOTAL 8/10 - 🚀 READY @ ₹{ltp} - Shri Ganesh Prasann")
+if sound_on:
+    beep_box()
 
-# READY pe bhi beep (puraana wala)
-if ltp:
-    st.markdown(f'<div class="bull">TOTAL 8/10 READY @ ₹{ltp} - BEEP!</div>', unsafe_allow_html=True)
-
-st.divider()
-
-# BUTTONS PE BEEP
-if st.button("🔄 SCAN Daba - Beep bajega", key="scan_beep"):
-    beep()
-    st.success("Beep! Scan shuru...")
-    # yahan tera bulk wala scan logic
-    st.write("Bulk scan logic yahan ayega...")
-
-if st.button("🔊 TEST BEEP BAJA", key="test_beep"):
-    beep()
-    st.info("Beep baja kya?")
-
-st.caption(f"Last: {datetime.now().strftime('%H:%M:%S')} | Beep System ON")
+st.caption(f"V70 GANESH FINAL | {datetime.now().strftime('%H:%M:%S')}")
 time.sleep(speed_val)
 st.rerun()
