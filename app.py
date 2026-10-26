@@ -35,64 +35,66 @@ headers = {
     "Accept": "application/json"
 }
 
-# --- Fetch Dynamic MCX Keys ---
-@st.cache_data(ttl=3600)
+# --- Fetch Dynamic Live MCX Keys (Updated for exact 2026 contract match) ---
+@st.cache_data(ttl=1800)
 def load_latest_mcx_keys():
     try:
         url = "https://upstox.com"
         df = pd.read_csv(url, compression='gzip')
+        
+        # फ़िल्टर केवल MCX सेगमेंट के लिए
         mcx_df = df[df['exchange'] == 'MCX'].copy()
         
-        def get_key(prefix):
-            filtered = mcx_df[
-                (mcx_df['trading_symbol'].str.startswith(prefix)) & 
-                (mcx_df['instrument_type'] == 'FUT')
-            ]
+        # केवल फ्यूचर कॉन्ट्रैक्ट्स
+        mcx_df = mcx_df[mcx_df['instrument_type'] == 'FUT']
+        
+        def get_exact_key(symbol_name):
+            # उदाहरण के लिए जो सिंबल CRUDEOIL से शुरू होते हैं
+            filtered = mcx_df[mcx_df['trading_symbol'].str.startswith(symbol_name)]
             if not filtered.empty:
+                # एक्सपायरी के हिसाब से सॉर्ट करें ताकि करंट मंथ (सबसे पास वाला) सबसे ऊपर आए
                 filtered = filtered.sort_values(by='expiry')
                 row = filtered.iloc[0]
-                # Upstox live feed requires proper casing formats
-                return {"key": str(row['instrument_key']), "name": row['trading_symbol']}
+                return {"key": str(row['instrument_key']), "name": str(row['trading_symbol'])}
             return None
 
         res = {
-            "GOLD": get_key("GOLD"),
-            "SILVER": get_key("SILVER"),
-            "CRUDEOIL": get_key("CRUDEOIL"),
-            "NATURALGAS": get_key("NATURALGAS")
+            "GOLD": get_exact_key("GOLD"),
+            "SILVER": get_exact_key("SILVER"),
+            "CRUDEOIL": get_exact_key("CRUDEOIL"),
+            "NATURALGAS": get_exact_key("NATURALGAS")
         }
+        
         if res["CRUDEOIL"] is not None:
             return res
-        raise Exception("Empty CSV")
-    except:
-        # Fallback with exact working live structural tokens
+        raise Exception("Dynamic fetch failed, trying fallback")
+    except Exception as e:
+        # अगर नेटवर्क या फाइल फेल हो तो आज रात के लाइव वर्किंग सिम्बल्स का बैकअप ढांचा
         return {
-            "GOLD": {"key": "MCX_FO|MCXGOLD26DECFUT", "name": "GOLD 26DEC FUT"},
-            "SILVER": {"key": "MCX_FO|MCXSILVER26DECFUT", "name": "SILVER 26DEC FUT"},
-            "CRUDEOIL": {"key": "MCX_FO|MCXCRUDEOIL26NOVFUT", "name": "CRUDEOIL 26NOV FUT"},
-            "NATURALGAS": {"key": "MCX_FO|MCXNATURALGAS26OCTFUT", "name": "NATURALGAS 26OCT FUT"},
+            "GOLD": {"key": "MCX_FO|MCXGOLD26DECFUT", "name": "GOLD DEC FUT"},
+            "SILVER": {"key": "MCX_FO|MCXSILVER26DECFUT", "name": "SILVER DEC FUT"},
+            "CRUDEOIL": {"key": "MCX_FO|MCXCRUDEOIL26NOVFUT", "name": "CRUDEOIL NOV FUT"},
+            "NATURALGAS": {"key": "MCX_FO|MCXNATURALGAS26OCTFUT", "name": "NATURALGAS OCT FUT"},
         }
 
-with st.spinner("Upstox se active instruments list read kar raha hu..."):
+with st.spinner("Upstox Live Database se active instruments download ho rahe hain..."):
     MCX_MAP = load_latest_mcx_keys()
 
-# Prepare clean keys string
+# चाबियों की लिस्ट तैयार करें
 MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
 ALL_KEYS = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
 
-# --- Fetch Data (Corrected to v2 Endpoint) ---
+# --- Fetch Data Function ---
 def get_ltp(keys):
     final = {}
     status = 0
     joined = ",".join(keys)
     try:
-        # यहाँ v3 को बदलकर v2 किया गया है जो लाइव मार्केट डेटा का सही पता है
         r = requests.get("https://upstox.com",
                          headers=headers, params={"instrument_key": joined}, timeout=6)
         status = r.status_code
-        if r.status_code == 200:
-            if r.text and r.text.strip() and not r.text.strip().startswith("<"):
-                final = r.json().get("data", {})
+        if r.status_code == 200 and r.text:
+            final = r.json().get("data", {})
     except Exception as e:
         pass
     return final, status
@@ -103,8 +105,9 @@ live_box = st.empty()
 with live_box.container():
     prices, status = get_ltp(ALL_KEYS)
     
-    if status == 200 and prices:
-        st.subheader("📊 MCX Live Rates")
+    st.subheader("📊 MCX Live Rates")
+    
+    if status == 200:
         cols = st.columns(len(MCX_MAP))
         
         for idx, (sym, details) in enumerate(MCX_MAP.items()):
@@ -112,13 +115,13 @@ with live_box.container():
                 key = details["key"]
                 ltp_value = "Updating..."
                 
-                # Match tokens perfectly case-insensitive
+                # फ्लेक्सिबल मिलान: कीज को डायरेक्ट या पार्शियल चेक करना
                 if key in prices:
                     ltp_value = prices[key].get("last_price", "Updating...")
                 else:
-                    for k, v in prices.items():
-                        if k.lower() == key.lower() or key.split('|')[-1].lower() in k.lower():
-                            ltp_value = v.get("last_price", "Updating...")
+                    for response_key, quote_data in prices.items():
+                        if response_key.lower() == key.lower() or key.split('|')[-1].lower() in response_key.lower():
+                            ltp_value = quote_data.get("last_price", "Updating...")
                             break
                 
                 cols[idx].metric(label=details["name"], value=f"₹{ltp_value}" if ltp_value != "Updating..." else ltp_value)
@@ -132,10 +135,14 @@ with live_box.container():
                 nifty_val = q_data.get("last_price", "Updating...")
                 break
         st.info(f"📈 Nifty 50 Live: {nifty_val}")
+        
+        # सेफगार्ड: अगर स्क्रीन पर भाव न दिखें, तो लाइव आने वाला कच्चा रिस्पॉन्स यहाँ छप जाएगा
+        st.subheader("🔍 Live API Data Stream (Debug)")
+        st.json(prices)
+        
         st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | Connection: Stable")
     else:
         st.error(f"Upstox Client connect to hai par response khali hai. Status Code: {status}")
-        st.info("Kripya check karein ki Token sahi se paste hua hai ya nahi.")
 
 # --- Loop Rerun ---
 if st.session_state.auto:
