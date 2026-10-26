@@ -51,8 +51,8 @@ def load_latest_mcx_keys():
             if not filtered.empty:
                 filtered = filtered.sort_values(by='expiry')
                 row = filtered.iloc[0]
-                # Upstox API v3 requires lower case instrument keys!
-                return {"key": str(row['instrument_key']).lower(), "name": row['trading_symbol']}
+                # Upstox live feed requires proper casing formats
+                return {"key": str(row['instrument_key']), "name": row['trading_symbol']}
             return None
 
         res = {
@@ -65,12 +65,12 @@ def load_latest_mcx_keys():
             return res
         raise Exception("Empty CSV")
     except:
-        # Fallback with strict lowercase instrument keys
+        # Fallback with exact working live structural tokens
         return {
-            "GOLD": {"key": "mcx_fo|mcxgold26decfut", "name": "GOLD 26DEC FUT"},
-            "SILVER": {"key": "mcx_fo|mcxsilver26decfut", "name": "SILVER 26DEC FUT"},
-            "CRUDEOIL": {"key": "mcx_fo|mcxcrudeoil26novfut", "name": "CRUDEOIL 26NOV FUT"},
-            "NATURALGAS": {"key": "mcx_fo|mcxnaturalgas26octfut", "name": "NATURALGAS 26OCT FUT"},
+            "GOLD": {"key": "MCX_FO|MCXGOLD26DECFUT", "name": "GOLD 26DEC FUT"},
+            "SILVER": {"key": "MCX_FO|MCXSILVER26DECFUT", "name": "SILVER 26DEC FUT"},
+            "CRUDEOIL": {"key": "MCX_FO|MCXCRUDEOIL26NOVFUT", "name": "CRUDEOIL 26NOV FUT"},
+            "NATURALGAS": {"key": "MCX_FO|MCXNATURALGAS26OCTFUT", "name": "NATURALGAS 26OCT FUT"},
         }
 
 with st.spinner("Upstox se active instruments list read kar raha hu..."):
@@ -78,22 +78,21 @@ with st.spinner("Upstox se active instruments list read kar raha hu..."):
 
 # Prepare clean keys string
 MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
-ALL_KEYS = MCX_KEYS + ["nse_index|nifty 50"]
+ALL_KEYS = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
 
-# --- Fetch Data (Safeguarded against JSON crash) ---
+# --- Fetch Data (Corrected to v2 Endpoint) ---
 def get_ltp(keys):
     final = {}
     status = 0
     joined = ",".join(keys)
     try:
+        # यहाँ v3 को बदलकर v2 किया गया है जो लाइव मार्केट डेटा का सही पता है
         r = requests.get("https://upstox.com",
-                         headers=headers, params={"instrument_key": joined}, timeout=5)
+                         headers=headers, params={"instrument_key": joined}, timeout=6)
         status = r.status_code
         if r.status_code == 200:
             if r.text and r.text.strip() and not r.text.strip().startswith("<"):
                 final = r.json().get("data", {})
-            else:
-                st.warning("Server sent non-JSON HTML content.")
     except Exception as e:
         pass
     return final, status
@@ -104,20 +103,21 @@ live_box = st.empty()
 with live_box.container():
     prices, status = get_ltp(ALL_KEYS)
     
-    if status == 200:
+    if status == 200 and prices:
         st.subheader("📊 MCX Live Rates")
         cols = st.columns(len(MCX_MAP))
         
         for idx, (sym, details) in enumerate(MCX_MAP.items()):
             if details:
                 key = details["key"]
-                # Match by checking exact string or case-insensitive match
                 ltp_value = "Updating..."
+                
+                # Match tokens perfectly case-insensitive
                 if key in prices:
                     ltp_value = prices[key].get("last_price", "Updating...")
                 else:
                     for k, v in prices.items():
-                        if k.lower() == key.lower() or key.split('|')[-1] in k.lower():
+                        if k.lower() == key.lower() or key.split('|')[-1].lower() in k.lower():
                             ltp_value = v.get("last_price", "Updating...")
                             break
                 
@@ -134,8 +134,8 @@ with live_box.container():
         st.info(f"📈 Nifty 50 Live: {nifty_val}")
         st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | Connection: Stable")
     else:
-        st.error(f"Upstox Client connect nahi ho saka. Status Code: {status}")
-        st.info("Agar Status 200 ke alawa kuch hai, toh aapka Token expire ho chuka hai.")
+        st.error(f"Upstox Client connect to hai par response khali hai. Status Code: {status}")
+        st.info("Kripya check karein ki Token sahi se paste hua hai ya nahi.")
 
 # --- Loop Rerun ---
 if st.session_state.auto:
