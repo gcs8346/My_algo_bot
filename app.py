@@ -35,7 +35,7 @@ headers = {
     "Accept": "application/json"
 }
 
-# --- 2026/Current Live MCX Mapping (Dynamic + Solid Fallback) ---
+# --- Dynamic MCX Keys (Exact 2026 Live Formats) ---
 @st.cache_data(ttl=1800)
 def load_latest_mcx_keys():
     try:
@@ -64,43 +64,30 @@ def load_latest_mcx_keys():
             return res
         raise Exception("CSV Empty")
     except:
-        # 2026 के लाइव बेस कॉन्ट्रैक्ट्स
+        # बिल्कुल लाइव चलने वाले नवंबर/दिसंबर कॉन्ट्रैक्ट्स
         return {
-            "GOLD": {"key": "GOLD26DECFUT", "name": "GOLD 26DEC FUT"},
-            "SILVER": {"key": "SILVER26DECFUT", "name": "SILVER 26DEC FUT"},
-            "CRUDEOIL": {"key": "CRUDEOIL26NOVFUT", "name": "CRUDEOIL 26NOV FUT"},
-            "NATURALGAS": {"key": "NATURALGAS26NOVFUT", "name": "NATURALGAS 26NOV FUT"},
+            "GOLD": {"key": "MCX_FO|GOLD26DECFUT", "name": "GOLD 26DEC FUT"},
+            "SILVER": {"key": "MCX_FO|SILVER26DECFUT", "name": "SILVER 26DEC FUT"},
+            "CRUDEOIL": {"key": "MCX_FO|CRUDEOIL26NOVFUT", "name": "CRUDEOIL 26NOV FUT"},
+            "NATURALGAS": {"key": "MCX_FO|NATURALGAS26NOVFUT", "name": "NATURALGAS 26NOV FUT"},
         }
 
 with st.spinner("Upstox Live System se instruments update kar raha hu..."):
     MCX_MAP = load_latest_mcx_keys()
 
-# --- महा-सूची निर्माण (Omni-Format Key Generation) ---
-# अपस्टॉक्स को किसी भी फ़ॉर्मेट में भ्रम न हो, इसलिए हम सभी संभावित फ़ॉर्मेट्स एक साथ भेजेंगे
-REQUEST_KEYS = []
-for v in MCX_MAP.values():
-    if v:
-        base_key = v["key"].split('|')[-1]
-        # 1. बड़े अक्षरों में प्रिफिक्स के साथ
-        REQUEST_KEYS.append(f"MCX_FO|{base_key.upper()}")
-        # 2. छोटे अक्षरों में प्रिफिक्स के साथ
-        REQUEST_KEYS.append(f"mcx_fo|{base_key.lower()}")
-        # 3. बिना प्रिफिक्स के शुद्ध नाम
-        REQUEST_KEYS.append(base_key.upper())
-        REQUEST_KEYS.append(base_key.lower())
+# आपके वर्किंग कोड की तरह यहाँ कॉमा से अलग की गई सिंगल स्ट्रिंग तैयार की जा रही है
+MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
+ALL_KEYS_LIST = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
+JOINED_KEYS_STRING = ",".join(ALL_KEYS_LIST)
 
-# निफ्टी के भी दोनों संभावित फ़ॉर्मेट्स जोड़ें
-REQUEST_KEYS.extend(["NSE_INDEX|Nifty 50", "NSE_INDEX|NIFTY50", "nse_index|nifty 50"])
-ALL_KEYS = list(set(REQUEST_KEYS))
-
-# --- Fetch Data ---
-def get_ltp(keys):
+# --- Fetch Data (Exactly matching your working code logic) ---
+def get_ltp(joined_string):
     final = {}
     status = 0
     try:
-        # अपस्टॉक्स के नियमानुसार लिस्ट को सीधे URL पैरामीटर्स के रूप में भेजना
+        # आपके लाइव कोड की तरह सीधे सिंगल स्ट्रिंग पैरामीटर भेजा गया है
         r = requests.get("https://upstox.com",
-                         headers=headers, params={"instrument_key": keys}, timeout=6)
+                         headers=headers, params={"instrument_key": joined_string}, timeout=6)
         status = r.status_code
         if r.status_code == 200 and r.text:
             final = r.json().get("data", {})
@@ -112,7 +99,7 @@ def get_ltp(keys):
 live_box = st.empty()
 
 with live_box.container():
-    prices, status = get_ltp(ALL_KEYS)
+    prices, status = get_ltp(JOINED_KEYS_STRING)
     
     st.subheader("📊 MCX Live Rates")
     
@@ -121,29 +108,38 @@ with live_box.container():
         
         for idx, (sym, details) in enumerate(MCX_MAP.items()):
             if details:
-                base_name = details["key"].split('|')[-1].upper()
+                key = details["key"]
+                clean_target = key.split('|')[-1].upper()
                 ltp_value = "Updating..."
                 
-                # रिस्पॉन्स में आए डेटा में से सही भाव ढूंढना (चाहे वह किसी भी केस/फ़ॉर्मेट में आया हो)
-                for response_key, quote_data in prices.items():
-                    clean_resp_key = response_key.split('|')[-1].upper()
-                    if base_name in clean_resp_key or clean_resp_key in base_name:
-                        ltp_value = quote_data.get("last_price", "Updating...")
-                        break
+                # सेफ मैचिंग लूप
+                if key in prices:
+                    ltp_value = prices[key].get("last_price", "Updating...")
+                elif key.lower() in prices:
+                    ltp_value = prices[key.lower()].get("last_price", "Updating...")
+                else:
+                    for response_key, quote_data in prices.items():
+                        if clean_target in response_key.upper() or response_key.upper() in key.upper():
+                            ltp_value = quote_data.get("last_price", "Updating...")
+                            break
                 
                 cols[idx].metric(label=details["name"], value=f"₹{ltp_value}" if ltp_value != "Updating..." else ltp_value)
         
         st.markdown("---")
         
-        # Nifty Display
+        # Nifty Display (वर्किंग कोड आधारित)
         nifty_val = "Updating..."
-        for r_key, q_data in prices.items():
-            if "NIFTY" in r_key.upper():
-                nifty_val = q_data.get("last_price", "Updating...")
-                break
+        if "NSE_INDEX|Nifty 50" in prices:
+            nifty_val = prices["NSE_INDEX|Nifty 50"].get("last_price", "Updating...")
+        else:
+            for r_key, q_data in prices.items():
+                if "NIFTY" in r_key.upper():
+                    nifty_val = q_data.get("last_price", "Updating...")
+                    break
+                    
         st.info(f"📈 Nifty 50 Live: {nifty_val}")
         
-        # Raw Data Stream Window
+        # Raw Debug Window
         st.subheader("🔍 Live API Data Stream (Debug)")
         st.json(prices)
         
