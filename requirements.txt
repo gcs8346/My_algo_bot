@@ -8,3 +8,4 @@ python-dotenv
 websockets
 websocket-client
 streamlit-autorefresh
+pandas
