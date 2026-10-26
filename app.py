@@ -1,79 +1,87 @@
 import streamlit as st
-import requests
-import time
+import requests, pandas as pd, time
 from datetime import datetime
 
-st.set_page_config(page_title="TOWER V90 PROOF", layout="wide")
-st.title("TOWER V90 - PROOF WALA TICK TICK 🔴")
+st.set_page_config(page_title="V93 BSE SENSEX", layout="wide")
+st.title("V93 - SENSEX BSE + NSE + MCX - 10/10 🔴")
 
-# Token
-token_input = st.text_input("Upstox Token (Roz Naya)", type="password", key="token_box")
+token_input = st.text_input("Upstox Token", type="password")
 if token_input and len(token_input.strip()) > 50:
     st.session_state.tok = token_input.strip().replace("Bearer ", "").strip()
+token = st.session_state.get("tok","")
+if not token or len(token)<50:
+    st.warning("Token daal"); st.stop()
 
-token = st.session_state.get("tok", "")
-if not token or len(token) < 50:
-    st.warning("Token daal")
-    st.stop()
+headers = {"Authorization": f"Bearer {token}"}
 
-# Counter - proof ke liye
-if "count" not in st.session_state:
-    st.session_state.count = 0
-st.session_state.count += 1
+INSTRUMENTS = {
+    "NIFTY 50": "NSE_INDEX|Nifty 50",
+    "BANKNIFTY": "NSE_INDEX|Nifty Bank",
+    "SENSEX": "BSE_INDEX|SENSEX",
+    "BANKEX": "BSE_INDEX|BANKEX",
+    "RELIANCE": "NSE_EQ|INE002A01018",
+    "INFOSYS": "NSE_EQ|INE009A01021",
+    "GOLD": "MCX_FO|495213",
+    "SILVER": "MCX_FO|495214",
+    "CRUDEOIL": "MCX_FO|573422",
+}
 
-# Controls
-if "tick" not in st.session_state:
-    st.session_state.tick = True
+def ema(s,p): return s.ewm(span=p, adjust=False).mean()
+def rsi(s,p=14):
+    d=s.diff(); g=d.where(d>0,0).rolling(p).mean(); l=-d.where(d<0,0).rolling(p).mean()
+    return 100-(100/(1+g/l))
 
-c1, c2, c3, c4 = st.columns([1,1,1,3])
+def get_df(key):
+    try:
+        url=f"https://api.upstox.com/v3/historical-candle/intraday/{key}/5minute"
+        r=requests.get(url, headers=headers, timeout=10)
+        if r.status_code==200:
+            c=r.json().get("data",{}).get("candles",[])
+            if c:
+                df=pd.DataFrame(c, columns=["ts","open","high","low","close","volume","oi"])
+                return df.iloc[::-1].reset_index(drop=True)
+    except: pass
+    return None
+
+if "tick" not in st.session_state: st.session_state.tick=True
+c1,c2=st.columns(2)
 with c1:
-    if st.button("🟢 START"):
-        st.session_state.tick = True
-        st.rerun()
+    if st.button("🟢 START"): st.session_state.tick=True; st.rerun()
 with c2:
-    if st.button("🔴 STOP"):
-        st.session_state.tick = False
-        st.rerun()
-with c3:
-    speed = st.selectbox("Sec", [1,2,3,5], index=1, label_visibility="collapsed")
-with c4:
-    st.metric("TICK COUNT", st.session_state.count, f"LIVE {datetime.now().strftime('%H:%M:%S')}")
+    if st.button("🔴 STOP"): st.session_state.tick=False; st.rerun()
 
-headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-KEYS = ["MCX_FO|495213", "MCX_FO|495214", "MCX_FO|573422", "MCX_FO|570750"]
-NAMES = ["GOLD", "SILVER", "CRUDEOIL", "NATURALGAS"]
-
-prices = {}
-for k in KEYS:
-    r = requests.get("https://api.upstox.com/v3/market-quote/ltp", headers=headers, params={"instrument_key": k}, timeout=10)
-    if r.status_code == 200:
-        data = r.json().get("data", {})
-        for _, q in data.items():
-            prices[q.get("instrument_token")] = q
-
-# --- PROOF TICKER ---
-html = ""
-for i, k in enumerate(KEYS):
-    q = prices.get(k, {})
-    last = q.get("last_price", 0)
-    html += f"<span style='margin-right:40px;color:#00ff88;font-weight:bold'>{NAMES[i]} Rs.{last} | Vol:{q.get('volume')} </span>"
-
-st.markdown(f"<div style='background:#0e1117;border:2px solid #00ff88;padding:12px;border-radius:10px'><marquee scrollamount='8'>{html} | COUNT:{st.session_state.count} | TIME:{datetime.now().strftime('%H:%M:%S')}</marquee></div>", unsafe_allow_html=True)
-
-cols = st.columns(4)
-for i, k in enumerate(KEYS):
-    q = prices.get(k, {})
-    with cols[i]:
-        if q.get("last_price"):
-            st.metric(NAMES[i], f"Rs.{q.get('last_price')}", f"Vol {q.get('volume')} | LTQ {q.get('ltq')}")
-            # Ye har tick pe badlega - proof
-            st.caption(f"Tick #{st.session_state.count} | {datetime.now().strftime('%H:%M:%S')} | {k}")
-
-st.info(f"✅ PROOF: Agar COUNT {st.session_state.count} badh raha hai aur TIME badal raha hai har {speed} sec me, toh TICK TICK chal raha hai! Price tabhi badlega jab MCX me trade hoga. Abhi GOLD ka volume 4071 tha, agla trade hote hi 4072 ho jayega.")
-
-with st.expander("LIVE JSON"):
-    st.json(prices)
+for name,key in INSTRUMENTS.items():
+    df=get_df(key)
+    if df is None or len(df)<50:
+        st.metric(name, "WAIT", key); continue
+    
+    close=df["close"]; high=df["high"]; low=df["low"]
+    e9=ema(close,9).iloc[-1]; e21=ema(close,21).iloc[-1]; e50=ema(close,50).iloc[-1]
+    r=rsi(close).iloc[-1]; c=close.iloc[-1]
+    tp=(df["high"]+df["low"]+df["close"])/3
+    vwap=(tp*df["volume"]).cumsum()/df["volume"].cumsum()
+    vwap=vwap.iloc[-1]
+    
+    checks={
+        "EMA9>21": e9>e21,
+        "Close>EMA9": c>e9,
+        "RSI 50+": r>50,
+        "Supertrend": c>e50 and r>50,
+        "EMA50": c>e50,
+        "BOS": c>high.iloc[-11:-1].max(),
+        "SAFE": abs(c-e9)/c<0.004,
+        "FVG": low.iloc[-1]>high.iloc[-3],
+        "VWAP": c>vwap,
+        "SENSEX/BSE": True if "BSE" in key else datetime.now().hour<15
+    }
+    score=sum(checks.values())
+    color="#00ff88" if score>=7 else "#ffaa00" if score>=4 else "#ff4444"
+    tag="🔥 FIRE" if score>=7 else "⚠️ SETUP" if score>=4 else "💤 WAIT"
+    
+    st.markdown(f"### {name} - Rs.{c:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> RSI:{r:.0f}", unsafe_allow_html=True)
+    cols=st.columns(5)
+    for i,(k,v) in enumerate(checks.items()):
+        cols[i%5].caption(f"{'✅' if v else '❌'} {k}")
 
 if st.session_state.tick:
-    time.sleep(speed)
-    st.rerun()
+    time.sleep(3); st.rerun()
