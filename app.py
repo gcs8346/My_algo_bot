@@ -1,159 +1,84 @@
 import streamlit as st
 import requests
-import time
-import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="TOWER V84 FINAL", layout="wide")
-st.title("TOWER V84 - CENTURY FINAL 🔴 LIVE")
+st.set_page_config(page_title="TOWER V85 FINAL STABLE", layout="wide")
+st.title("TOWER V85 - NO SLEEP LIVE 🔴")
 
-# --- Auto Refresh ---
-if "auto" not in st.session_state:
-    st.session_state.auto = True
-
-c1, c2 = st.columns(2)
-with c2:
-    auto_on = st.toggle("Auto 5s", value=st.session_state.auto)
-    st.session_state.auto = auto_on
-    if st.button("🔄 Refresh"):
-        st.rerun()
-
-# --- Token Processing ---
-raw = st.text_input("Upstox Token (Roz Naya)", type="password")
+# --- Token Input ---
+raw = st.text_input("Upstox Token (Roz Naya - subah 3:30 baje naya banta hai)", type="password")
+token = raw.strip().replace("Bearer ","").strip() if raw else st.session_state.get("tok","")
 if raw:
-    token = raw.strip().replace("Bearer ", "").replace('"', '').replace("'", "").strip()
     st.session_state["tok"] = token
-else:
-    token = st.session_state.get("tok", "")
+    st.rerun()
 
-if not token or len(token) < 50:
-    st.warning("Token daal de bhai - Roz subah naya banta hai")
+if not token or len(token) < 100:
+    st.warning("Token daal bhai - https://api.upstox.com/v2/login se roz naya milta hai")
     st.stop()
 
-headers = {
-    "Authorization": f"Bearer {token}",
-    "Accept": "application/json"
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+# --- 4 FIXED KEYS - Yahi V83 me LIVE the ---
+MCX_MAP = {
+    "GOLD": "MCX_FO|495213",       # ispe 142575 aaya tha - GOLD 1KG
+    "SILVER": "MCX_FO|495214",     # ispe 194284 aaya tha - SILVER 30KG
+    "CRUDEOIL": "MCX_FO|573422",
+    "NATURALGAS": "MCX_FO|570750",
 }
+ALL = list(MCX_MAP.values())
 
-# --- Dynamic Numeric Token Extractor (Fixes Gateway Redirect) ---
-@st.cache_data(ttl=1800)
-def load_latest_mcx_keys():
-    try:
-        url = "https://upstox.com"
-        df = pd.read_csv(url, compression='gzip')
-        mcx_df = df[(df['exchange'] == 'MCX') & (df['instrument_type'] == 'FUT')].copy()
-        
-        # एक्सपायरी डेट क्लीनिंग
-        mcx_df['expiry'] = pd.to_datetime(mcx_df['expiry'])
-        today = pd.to_datetime(datetime.now().date())
-        mcx_df = mcx_df[mcx_df['expiry'] >= today]
-
-        def get_exact_numeric_key(prefix):
-            filtered = mcx_df[mcx_df['trading_symbol'].str.startswith(prefix)]
-            if not filtered.empty:
-                filtered = filtered.sort_values(by='expiry')
-                row = filtered.iloc[0]
-                # यह बिल्कुल सही संख्यात्मक फ़ॉर्मेट (जैसे: MCX_FO|495213) प्रदान करेगा
-                return {"key": str(row['instrument_key']), "name": str(row['trading_symbol'])}
-            return None
-
-        res = {
-            "GOLD": get_exact_numeric_key("GOLD"),
-            "SILVER": get_exact_numeric_key("SILVER"),
-            "CRUDEOIL": get_exact_numeric_key("CRUDEOIL"),
-            "NATURALGAS": get_exact_numeric_key("NATURALGAS")
-        }
-        if res["CRUDEOIL"] is not None:
-            return res
-        raise Exception("Fallback Triggered")
-    except:
-        # आज रात के लाइव कॉन्ट्रैक्ट्स के बिल्कुल सटीक लाइव संख्यात्मक टोकन नंबर्स का बुलेटप्रूफ बैकअप
-        return {
-            "GOLD": {"key": "MCX_FO|495213", "name": "GOLD 26DEC FUT"},
-            "SILVER": {"key": "MCX_FO|495214", "name": "SILVER 26DEC FUT"},
-            "CRUDEOIL": {"key": "MCX_FO|573422", "name": "CRUDEOIL 26NOV FUT"},
-            "NATURALGAS": {"key": "MCX_FO|570750", "name": "NATURALGAS 26NOV FUT"},
-        }
-
-with st.spinner("Upstox Live Engine se dynamic active tokens match kar raha hu..."):
-    MCX_MAP = load_latest_mcx_keys()
-
-# सिंबल्स को बिना किसी यूआरएल तोड़-फोड़ के सीधे कॉमा सेपरेटेड तैयार करना (जैसा आपके निफ्टी कोड में था)
-MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
-ALL_KEYS_LIST = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
-JOINED_KEYS_STRING = ",".join(ALL_KEYS_LIST)
-
-# --- Fetch Data (Direct Safe Param Injection) ---
-def get_ltp_perfect(joined_string):
-    final = {}
+def get_live():
+    out = {}
     status = 0
-    raw_response_text = ""
-    response_headers = {}
-    
-    try:
-        # यहाँ डिक्शनरी इनपुट का उपयोग कर बिना किसी मैन्युअल एनकोडिंग के क्लीन डेटा रिक्वेस्ट की जा रही है
-        r = requests.get(
-            url="https://upstox.com",
-            headers=headers,
-            params={"instrument_key": joined_string},
-            timeout=6
-        )
-        
-        status = r.status_code
-        response_headers = dict(r.headers)
-        raw_response_text = r.text
-        
-        if r.status_code == 200 and r.text and not r.text.strip().startswith("<"):
-            final = r.json().get("data", {})
-    except Exception as e:
-        raw_response_text = f"Safe Parse Exception: {str(e)}"
-        
-    return final, status, raw_response_text, response_headers
+    raw_text = ""
+    for key in ALL:
+        try:
+            r = requests.get("https://api.upstox.com/v3/market-quote/ltp",
+                             headers=headers, params={"instrument_key": key}, timeout=10)
+            status = r.status_code
+            raw_text = r.text[:1000]
+            if r.status_code == 200:
+                data = r.json().get("data", {})
+                for _, q in data.items():
+                    inst = q.get("instrument_token")
+                    if inst:
+                        out[inst] = q
+            else:
+                # Agar HTML aaya toh yahan dikhega ki token galat hai
+                return {}, status, raw_text
+        except Exception as e:
+            return {}, 0, str(e)
+    return out, status, raw_text
 
-# --- UI Render ---
-live_box = st.empty()
-
-with live_box.container():
-    prices, status, raw_text, resp_headers = get_ltp_perfect(JOINED_KEYS_STRING)
-    
-    st.subheader("📊 MCX Live Rates")
-    
-    if prices:
-        cols = st.columns(len(MCX_MAP))
-        for idx, (sym, details) in enumerate(MCX_MAP.items()):
-            if details:
-                key = details["key"]
-                ltp_value = "Updating..."
-                
-                if key in prices:
-                    ltp_value = prices[key].get("last_price", "Updating...")
-                elif key.lower() in prices:
-                    ltp_value = prices[key.lower()].get("last_price", "Updating...")
-                elif key.upper() in prices:
-                    ltp_value = prices[key.upper()].get("last_price", "Updating...")
-                
-                cols[idx].metric(label=details["name"], value=f"₹{ltp_value}" if ltp_value != "Updating..." else ltp_value)
-        
-        st.markdown("---")
-        
-        # Nifty Display
-        nifty_val = "Updating..."
-        if "NSE_INDEX|Nifty 50" in prices:
-            nifty_val = prices["NSE_INDEX|Nifty 50"].get("last_price", "Updating...")
-        st.info(f"📈 Nifty 50 Live: {nifty_val}")
-    else:
-        st.warning("Waiting for data stream... Please double check token or if commodity segment is active.")
-
-    # System Diagnostics Output
-    st.markdown("### 🛠️ Live Data Diagnostics")
-    if prices:
-        st.json(prices)
-    else:
-        st.code(raw_text)
-        
-    st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | Status Code: {status}")
-
-# --- Loop Rerun ---
-if st.session_state.auto:
-    time.sleep(5)
+if st.button("🔄 REFRESH - LIVE RATE LA"):
     st.rerun()
+
+prices, status, raw_debug = get_live()
+now = datetime.now().strftime("%H:%M:%S")
+
+# --- Ticker ---
+if prices:
+    bar = f"🔴 LIVE {now} | Status {status} | "
+    for name, k in MCX_MAP.items():
+        p = prices.get(k, {}).get("last_price")
+        if p:
+            bar += f"{name}: ₹{p} | "
+    st.success(bar)
+else:
+    st.error(f"❌ Data nahi aaya - Status {status} - Token expire ya MCX band")
+    st.caption("Neeche dekho API ne kya bola - agar HTML dikhe toh token naya banao")
+    with st.expander("🛠️ Live Data Diagnostics - API kya bola"):
+        st.code(raw_debug)
+
+cols = st.columns(4)
+for i, (name, k) in enumerate(MCX_MAP.items()):
+    q = prices.get(k, {})
+    last = q.get("last_price")
+    with cols[i]:
+        if last:
+            st.metric(name, f"₹{last}", f"LTQ:{q.get('ltq')} Vol:{q.get('volume')}")
+            st.caption(f"{k} | CP:{q.get('cp')} | {now}")
+        else:
+            st.metric(name, "WAIT", k)
+
+st.caption(f"V85 FINAL STABLE | {now} | No auto-sleep - Button daba ke refresh kar")
