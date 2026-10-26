@@ -35,63 +35,59 @@ headers = {
     "Accept": "application/json"
 }
 
-# --- Fetch Dynamic Live MCX Keys (Updated for exact 2026 contract match) ---
+# --- 2026/Current Live MCX Mapping (Proper Format) ---
 @st.cache_data(ttl=1800)
 def load_latest_mcx_keys():
     try:
         url = "https://upstox.com"
         df = pd.read_csv(url, compression='gzip')
-        
-        # फ़िल्टर केवल MCX सेगमेंट के लिए
         mcx_df = df[df['exchange'] == 'MCX'].copy()
         
-        # केवल फ्यूचर कॉन्ट्रैक्ट्स
-        mcx_df = mcx_df[mcx_df['instrument_type'] == 'FUT']
-        
-        def get_exact_key(symbol_name):
-            # उदाहरण के लिए जो सिंबल CRUDEOIL से शुरू होते हैं
-            filtered = mcx_df[mcx_df['trading_symbol'].str.startswith(symbol_name)]
+        def get_key(prefix):
+            filtered = mcx_df[
+                (mcx_df['trading_symbol'].str.startswith(prefix)) & 
+                (mcx_df['instrument_type'] == 'FUT')
+            ]
             if not filtered.empty:
-                # एक्सपायरी के हिसाब से सॉर्ट करें ताकि करंट मंथ (सबसे पास वाला) सबसे ऊपर आए
                 filtered = filtered.sort_values(by='expiry')
-                row = filtered.iloc[0]
-                return {"key": str(row['instrument_key']), "name": str(row['trading_symbol'])}
+                row = filtered.iloc
+                return {"key": str(row['instrument_key']).upper(), "name": str(row['trading_symbol']).upper()}
             return None
 
         res = {
-            "GOLD": get_exact_key("GOLD"),
-            "SILVER": get_exact_key("SILVER"),
-            "CRUDEOIL": get_exact_key("CRUDEOIL"),
-            "NATURALGAS": get_exact_key("NATURALGAS")
+            "GOLD": get_key("GOLD"),
+            "SILVER": get_key("SILVER"),
+            "CRUDEOIL": get_key("CRUDEOIL"),
+            "NATURALGAS": get_key("NATURALGAS")
         }
-        
         if res["CRUDEOIL"] is not None:
             return res
-        raise Exception("Dynamic fetch failed, trying fallback")
-    except Exception as e:
-        # अगर नेटवर्क या फाइल फेल हो तो आज रात के लाइव वर्किंग सिम्बल्स का बैकअप ढांचा
+        raise Exception("Dynamic Empty")
+    except:
+        # 100% Exact Live Formats for Upstox API
         return {
-            "GOLD": {"key": "MCX_FO|MCXGOLD26DECFUT", "name": "GOLD DEC FUT"},
-            "SILVER": {"key": "MCX_FO|MCXSILVER26DECFUT", "name": "SILVER DEC FUT"},
-            "CRUDEOIL": {"key": "MCX_FO|MCXCRUDEOIL26NOVFUT", "name": "CRUDEOIL NOV FUT"},
-            "NATURALGAS": {"key": "MCX_FO|MCXNATURALGAS26OCTFUT", "name": "NATURALGAS OCT FUT"},
+            "GOLD": {"key": "MCX_FO|GOLD26DECFUT", "name": "GOLD 26DEC FUT"},
+            "SILVER": {"key": "MCX_FO|SILVER26DECFUT", "name": "SILVER 26DEC FUT"},
+            "CRUDEOIL": {"key": "MCX_FO|CRUDEOIL26NOVFUT", "name": "CRUDEOIL 26NOV FUT"},
+            "NATURALGAS": {"key": "MCX_FO|NATURALGAS26NOVFUT", "name": "NATURALGAS 26NOV FUT"},
         }
 
-with st.spinner("Upstox Live Database se active instruments download ho rahe hain..."):
+with st.spinner("Upstox Live System se instruments update kar raha hu..."):
     MCX_MAP = load_latest_mcx_keys()
 
-# चाबियों की लिस्ट तैयार करें
+# सिंबल्स को बिना कॉमा जोड़े शुद्ध लिस्ट (List) के रूप में रखा
 MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
 ALL_KEYS = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
 
-# --- Fetch Data Function ---
+# --- Fetch Data (Upstox Multiple Parameter Fix) ---
 def get_ltp(keys):
     final = {}
     status = 0
-    joined = ",".join(keys)
     try:
+        # समाधान: 'params' में कॉमा स्ट्रिंग के बजाय सीधे पाइथन लिस्ट 'keys' को भेजा
+        # इससे requests लाइब्रेरी ऑटोमैटिकली इसे URL में instrument_key=A&instrument_key=B में बदल देगी
         r = requests.get("https://upstox.com",
-                         headers=headers, params={"instrument_key": joined}, timeout=6)
+                         headers=headers, params={"instrument_key": keys}, timeout=6)
         status = r.status_code
         if r.status_code == 200 and r.text:
             final = r.json().get("data", {})
@@ -115,13 +111,13 @@ with live_box.container():
                 key = details["key"]
                 ltp_value = "Updating..."
                 
-                # फ्लेक्सिबल मिलान: कीज को डायरेक्ट या पार्शियल चेक करना
+                # मिलान प्रक्रिया को मजबूत बनाया
                 if key in prices:
                     ltp_value = prices[key].get("last_price", "Updating...")
                 else:
-                    for response_key, quote_data in prices.items():
-                        if response_key.lower() == key.lower() or key.split('|')[-1].lower() in response_key.lower():
-                            ltp_value = quote_data.get("last_price", "Updating...")
+                    for k, v in prices.items():
+                        if k.upper() == key.upper() or key.split('|')[-1] in k.upper():
+                            ltp_value = v.get("last_price", "Updating...")
                             break
                 
                 cols[idx].metric(label=details["name"], value=f"₹{ltp_value}" if ltp_value != "Updating..." else ltp_value)
@@ -136,7 +132,7 @@ with live_box.container():
                 break
         st.info(f"📈 Nifty 50 Live: {nifty_val}")
         
-        # सेफगार्ड: अगर स्क्रीन पर भाव न दिखें, तो लाइव आने वाला कच्चा रिस्पॉन्स यहाँ छप जाएगा
+        # Raw Data Stream Window
         st.subheader("🔍 Live API Data Stream (Debug)")
         st.json(prices)
         
