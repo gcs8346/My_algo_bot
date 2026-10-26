@@ -20,14 +20,24 @@ with c2:
 
 # --- Upstox Token Input ---
 raw = st.text_input("Upstox Token (Roz Naya)", type="password")
-token = raw.strip().replace("Bearer ", "").strip() if raw else st.session_state.get("tok", "")
+
+# टोकन क्लीनिंग को पूरी तरह से सुरक्षित बनाया
 if raw:
+    token = raw.strip().replace("Bearer ", "").replace('"', '').replace("'", "").strip()
     st.session_state["tok"] = token
+else:
+    token = st.session_state.get("tok", "")
+
 if not token or len(token) < 50:
     st.warning("Token daal de bhai - Roz subah naya banta hai")
     st.stop()
 
-headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+# Headers में आवश्यक Accept फ़ील्ड्स को सुधारा
+headers = {
+    "Authorization": f"Bearer {token}",
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+}
 
 # --- Fetch Dynamic MCX Keys ---
 @st.cache_data(ttl=3600)
@@ -69,24 +79,35 @@ with st.spinner("Upstox se aaj ke latest MCX codes nikal raha hu..."):
 MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
 ALL_KEYS = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
 
-# --- Fetch LTP Function ---
+# --- Fetch LTP Function (Error Handling Added) ---
 def get_ltp(keys):
     final = {}
     status = 0
     joined = ",".join(keys)
     try:
-        r = requests.get("https://upstox.com",
-                         headers=headers, params={"instrument_key": joined}, timeout=5)
+        r = requests.get("https://api.upstox.com/v3/market-quote/ltp",
+                         headers=headers, params={"instrument_key": joined}, timeout=7)
         status = r.status_code
+        
         if r.status_code == 200:
-            data = r.json().get("data", {})
-            for trade_sym, quote in data.items():
-                final[trade_sym] = quote
+            # चेक करें कि रिस्पॉन्स खाली तो नहीं है
+            if r.text and r.text.strip():
+                try:
+                    data = r.json().get("data", {})
+                    for trade_sym, quote in data.items():
+                        final[trade_sym] = quote
+                except Exception as json_err:
+                    st.error(f"JSON Parsing Error: {json_err}. Server sent invalid JSON.")
+            else:
+                st.warning("Server se khali response aaya.")
         elif r.status_code == 401:
-            st.error("Token expire ho gaya - Upstox se naya token bana ke daal")
+            st.error("Token expire ho gaya ya galat hai - Naya token daal.")
             st.stop()
+        else:
+            st.error(f"Upstox API Error Status: {r.status_code}. Response: {r.text}")
+            
     except Exception as e:
-        st.warning(f"API error: {e}")
+        st.warning(f"Network/API Connection error: {e}")
     return final, status
 
 # --- Live Display Container ---
@@ -96,7 +117,6 @@ with live_box.container():
     prices, status = get_ltp(ALL_KEYS)
     
     if prices:
-        # Display MCX Cards
         st.subheader("📊 MCX Live Rates")
         cols = st.columns(len(MCX_MAP))
         
@@ -109,7 +129,6 @@ with live_box.container():
                 else:
                     cols[idx].metric(label=details["name"], value="No Data")
         
-        # Display Nifty Index
         st.markdown("---")
         if "NSE_INDEX|Nifty 50" in prices:
             nifty_ltp = prices["NSE_INDEX|Nifty 50"].get("last_price", "N/A")
@@ -117,7 +136,9 @@ with live_box.container():
             
         st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | API Status: {status}")
     else:
-        st.error("Upstox API se data nahi aa raha hai. Ek baar Token validation check karein.")
+        # क्रैश होने के बजाय स्क्रीन पर सीधे अपस्टॉक्स का स्टेटस कोड दिखेगा ताकि समस्या पकड़ी जा सके
+        st.error(f"Upstox API se data nahi mila. Status Code: {status}")
+        st.info("Agar Status Code 401/400 hai, toh aapka Token sahi se format nahi hua hai. Naya Token generate karke daalein.")
 
 # --- Stable Auto Refresh Loop ---
 if st.session_state.auto:
