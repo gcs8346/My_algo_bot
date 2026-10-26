@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import requests
 import time
 import pandas as pd
@@ -7,11 +7,12 @@ from datetime import datetime
 st.set_page_config(page_title="TOWER V84 FINAL", layout="wide")
 st.title("TOWER V84 - CENTURY FINAL 🔴 LIVE")
 
-# --- Auto Refresh Controls ---
+# --- Auto Refresh Controls (Columns Issue Fixed Here) ---
 if "auto" not in st.session_state:
     st.session_state.auto = True
 
-c1, c2 = st.columns()
+# st.columns(2) लिखकर संख्या को फिक्स किया ताकि एरर न आए
+c1, c2 = st.columns(2)
 with c2:
     auto_on = st.toggle("Auto 5s", value=st.session_state.auto)
     st.session_state.auto = auto_on
@@ -37,38 +38,30 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# --- Fetch Dynamic MCX Keys (Updated for 2026 Live Master File) ---
+# --- Fetch Dynamic MCX Keys ---
 @st.cache_data(ttl=3600)
 def load_latest_mcx_keys():
     try:
-        # Upstox की बिल्कुल नई और वर्किंग इंस्ट्रूमेंट यूआरएल
         url = "https://upstox.com"
         df = pd.read_csv(url, compression='gzip')
         
-        # MCX सेगमेंट फिल्टर करें
         mcx_df = df[df['exchange'] == 'MCX'].copy()
-        
-        # एक्सपायरी को सही डेट फ़ॉर्मेट में बदलें ताकि सॉर्टिंग सही हो
         mcx_df['expiry'] = pd.to_datetime(mcx_df['expiry'])
         
-        # आज की तारीख लें ताकि सिर्फ चालू कॉन्ट्रैक्ट्स ही दिखें
         today = pd.to_datetime(datetime.now().date())
         mcx_df = mcx_df[mcx_df['expiry'] >= today]
 
         def get_key(prefix):
-            # सिर्फ करंट एक्टिव फ्यूचर्स (FUT) निकालें
             filtered = mcx_df[
                 (mcx_df['trading_symbol'].str.startswith(prefix)) & 
                 (mcx_df['instrument_type'] == 'FUT')
             ]
             if not filtered.empty:
-                # सबसे नज़दीक वाली एक्सपायरी (Current Month Contract) को चुनें
                 filtered = filtered.sort_values(by='expiry')
                 row = filtered.iloc[0]
                 return {"key": row['instrument_key'], "name": row['trading_symbol']}
             return None
 
-        # अगर फाइल सफलतापूर्वक लोड हो गई तो डायनामिक कोड्स भेजें
         res = {
             "GOLD": get_key("GOLD"),
             "SILVER": get_key("SILVER"),
@@ -76,13 +69,12 @@ def load_latest_mcx_keys():
             "NATURALGAS": get_key("NATURALGAS")
         }
         
-        # चेक करें कि कम से कम क्रूड या गोल्ड मिला या नहीं
         if res["CRUDEOIL"] is not None:
             return res
-        raise Exception("Data empty in filtered dataframe")
+        raise Exception("Data empty")
 
     except Exception as e:
-        # बैकअप के तौर पर नवंबर/दिसंबर 2026 के लाइव टोकन सीधे हार्डकोड कर दिए हैं (अगर नेटवर्क फेल हो तो)
+        # Fallback keys logic
         return {
             "GOLD": {"key": "MCX_FO|MCXGOLD26DECFUT", "name": "GOLD DEC FUT (Live)"},
             "SILVER": {"key": "MCX_FO|MCXSILVER26DECFUT", "name": "SILVER DEC FUT (Live)"},
@@ -90,10 +82,9 @@ def load_latest_mcx_keys():
             "NATURALGAS": {"key": "MCX_FO|MCXNATURALGAS26OCTFUT", "name": "NATURALGAS OCT FUT (Live)"},
         }
 
-with st.spinner("Upstox se 2026 ke live MCX codes nikal raha hu..."):
+with st.spinner("Upstox se live MCX codes nikal raha hu..."):
     MCX_MAP = load_latest_mcx_keys()
 
-# Prepare Request Keys
 MCX_KEYS = [v["key"] for v in MCX_MAP.values() if v is not None]
 ALL_KEYS = MCX_KEYS + ["NSE_INDEX|Nifty 50"]
 
@@ -135,7 +126,6 @@ with live_box.container():
                     ltp = prices[key].get("last_price", "N/A")
                     cols[idx].metric(label=details["name"], value=f"₹{ltp}")
                 else:
-                    # यदि डायरेक्ट की मैच न हो तो आंशिक सिंबल मैचिंग (Partial Matching) करें
                     matched = False
                     for k, v in prices.items():
                         if sym in k or (isinstance(key, str) and key.split('|')[-1] in k):
@@ -153,7 +143,7 @@ with live_box.container():
             
         st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | Status: {status}")
     else:
-        st.error(f"Upstox API connect to hai par response khali hai. Status: {status}")
+        st.error(f"Upstox API se data nahi mila. Status: {status}")
 
 # --- Stable Auto Refresh Loop ---
 if st.session_state.auto:
