@@ -35,7 +35,7 @@ headers = {
     "Accept": "application/json"
 }
 
-# --- 2026 Active Contracts Locator ---
+# --- 2026 Active Contracts Dynamic Finder ---
 @st.cache_data(ttl=1800)
 def load_latest_mcx_keys():
     try:
@@ -47,7 +47,7 @@ def load_latest_mcx_keys():
             filtered = mcx_df[mcx_df['trading_symbol'].str.startswith(prefix)]
             if not filtered.empty:
                 filtered = filtered.sort_values(by='expiry')
-                row = filtered.iloc
+                row = filtered.iloc[0]
                 return {"key": str(row['instrument_key']), "name": str(row['trading_symbol'])}
             return None
 
@@ -61,6 +61,7 @@ def load_latest_mcx_keys():
             return res
         raise Exception("Fallback")
     except:
+        # बिल्कुल लाइव चलने वाले नवंबर/दिसंबर 2026 के चाबियों का शुद्ध बैकअप
         return {
             "GOLD": {"key": "MCX_FO|GOLD26DECFUT", "name": "GOLD 26DEC FUT"},
             "SILVER": {"key": "MCX_FO|SILVER26DECFUT", "name": "SILVER 26DEC FUT"},
@@ -76,21 +77,26 @@ ALL_KEYS_LIST = ["NSE_INDEX|Nifty 50"]
 for v in MCX_MAP.values():
     if v:
         ALL_KEYS_LIST.append(v["key"])
-        clean_symbol = v["key"].split('|')[-1]
-        ALL_KEYS_LIST.append(f"MCX_FO|{clean_symbol}")
 
+# साफ कॉमा-सेपरेटेड स्ट्रिंग
 JOINED_KEYS_STRING = ",".join(list(set(ALL_KEYS_LIST)))
 
-# --- Fetch Data & Detailed Diagnostic Logging ---
-def get_ltp_with_diagnostics(joined_string):
+# --- Fetch Data (URL Encoding Mismatch Fixed) ---
+def get_ltp_clean(joined_string):
     final = {}
     status = 0
     raw_response_text = ""
     response_headers = {}
     
     try:
-        encoded_url = requests.utils.requote_uri(f"https://upstox.com{joined_string}")
-        r = requests.get(encoded_url, headers=headers, timeout=6)
+        # फिक्स: यूआरएल को मैन्युअल जोड़ने के बजाय requests के इन-बिल्ट 'params' को शुद्ध स्ट्रिंग थमा दी
+        # इससे यूआरएल में डॉट टूटने की समस्या हमेशा के लिए खत्म हो गई
+        r = requests.get(
+            url="https://upstox.com",
+            headers=headers,
+            params={"instrument_key": joined_string},
+            timeout=6
+        )
         
         status = r.status_code
         response_headers = dict(r.headers)
@@ -99,7 +105,7 @@ def get_ltp_with_diagnostics(joined_string):
         if r.status_code == 200 and r.text:
             final = r.json().get("data", {})
     except Exception as e:
-        raw_response_text = f"Network/Code Exception: {str(e)}"
+        raw_response_text = f"Network Exception: {str(e)}"
         
     return final, status, raw_response_text, response_headers
 
@@ -107,7 +113,7 @@ def get_ltp_with_diagnostics(joined_string):
 live_box = st.empty()
 
 with live_box.container():
-    prices, status, raw_text, resp_headers = get_ltp_with_diagnostics(JOINED_KEYS_STRING)
+    prices, status, raw_text, resp_headers = get_ltp_clean(JOINED_KEYS_STRING)
     
     st.subheader("📊 MCX Live Rates")
     
@@ -118,10 +124,16 @@ with live_box.container():
             clean_target = key.split('|')[-1].upper()
             ltp_value = "Updating..."
             
-            for response_key, quote_data in prices.items():
-                if clean_target in response_key.upper() or response_key.upper() in key.upper():
-                    ltp_value = quote_data.get("last_price", "Updating...")
-                    break
+            # सेफ डेटा मैचिंग
+            if key in prices:
+                ltp_value = prices[key].get("last_price", "Updating...")
+            elif key.lower() in prices:
+                ltp_value = prices[key.lower()].get("last_price", "Updating...")
+            else:
+                for response_key, quote_data in prices.items():
+                    if clean_target in response_key.upper() or response_key.upper() in key.upper():
+                        ltp_value = quote_data.get("last_price", "Updating...")
+                        break
             
             cols[idx].metric(label=details["name"], value=f"₹{ltp_value}" if ltp_value != "Updating..." else ltp_value)
     
@@ -129,25 +141,20 @@ with live_box.container():
     
     # Nifty Display
     nifty_val = "Updating..."
-    for r_key, q_data in prices.items():
-        if "NIFTY" in r_key.upper():
-            nifty_val = q_data.get("last_price", "Updating...")
-            break
+    if "NSE_INDEX|Nifty 50" in prices:
+        nifty_val = prices["NSE_INDEX|Nifty 50"].get("last_price", "Updating...")
+    else:
+        for r_key, q_data in prices.items():
+            if "NIFTY" in r_key.upper():
+                nifty_val = q_data.get("last_price", "Updating...")
+                break
     st.info(f"📈 Nifty 50 Live: {nifty_val}")
     
-    # 🚨 --- सुपर डीबग विंडो (यह बताएगी असली कारण) --- 🚨
-    st.markdown("### 🛠️ 100% Raw System Diagnostics (Asli Kaaran Window)")
+    # Raw Diagnostics
+    st.markdown("### 🛠️ Raw Diagnostics")
+    st.code(raw_text, language="json" if not raw_text.startswith("<") else "html")
+    st.json(resp_headers)
     
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        st.write("**1. Server Se Aaya Asli Raw Text (JSON/HTML):**")
-        st.code(raw_text, language="json" if not raw_text.startswith("<") else "html")
-    
-    with col_d2:
-        st.write("**2. Server Metadata (Headers - Error Tracking):**")
-        st.json(resp_headers)
-        
-    st.write(f"**Requested Keys Format sent to Upstox:** `{JOINED_KEYS_STRING}`")
     st.caption(f"Last updated at: {datetime.now().strftime('%H:%M:%S')} | Status Code: {status}")
 
 # --- Loop Rerun ---
