@@ -1,139 +1,244 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 import requests
-import time
-from datetime import datetime
 from urllib.parse import quote
+from datetime import datetime, timedelta
+import time
 
-st.set_page_config(page_title="TOWER V46 FINAL", layout="wide")
+st.set_page_config(layout="wide", page_title="Topu V38.1 FIX")
+st.title("🔥 Topu V38.1 - BACKTEST BUTTON FIX LOCK")
 
-# CODE PAKADNE KE LIYE
-params = st.query_params
-if "code" in params:
-    c = params["code"]
-    st.success(f"✅ Upstox Code mil gaya: {c}")
-    st.code(c, language="text")
-    st.info("Is code ko Token me badlo, phir sidebar me daalo")
+# ===== SIDEBAR =====
+st.sidebar.header("🔑 UPSTOX TOKEN BOX")
+upstox_token = st.sidebar.text_input("Upstox Access Token", type="password")
+is_token = len(upstox_token.strip()) > 30 if upstox_token else False
+if is_token:
+    st.sidebar.success("🟢 TOKEN ON")
+else:
+    st.sidebar.error("🔴 TOKEN DALO")
 
-st.title("🏰 TOWER V46 - 10/10 FINAL LIVE")
+st.sidebar.header("🔊 SOUND BOX V17")
+enable_sound = st.sidebar.checkbox("Sound ON", True)
 
-# SIDEBAR
-st.sidebar.header("Upstox Setup")
-api_key = st.sidebar.text_input("API Key / Client ID", type="password")
-if api_key:
-    login_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={api_key}&redirect_uri=https://myalgobot-6kbrowounnbyajr6pkvt6y.streamlit.app/"
-    st.sidebar.link_button("🔑 Upstox Login Karo", login_url)
-
-upstox_token = st.sidebar.text_input("Upstox Token (Roz 6 AM naya)", type="password")
-tick_speed = st.sidebar.select_slider("Tik-Tik Speed", options=[0.8, 1.0, 1.5, 2.0, 3.0], value=1.0)
-auto_tick = st.sidebar.checkbox(f"LIVE ON ({tick_speed}s)", value=False)
-
-STOCKS = {
-    "Nifty 50":"NSE_INDEX|Nifty 50",
-    "Bank Nifty":"NSE_INDEX|Nifty Bank",
-    "Sensex":"BSE_INDEX|SENSEX",
-    "RELIANCE":"NSE_EQ|INE002A01018",
-    "GOLD":"MCX_FO|GOLDM26NOVFUT",
-    "CRUDEOIL":"MCX_FO|CRUDEOIL26NOVFUT"
+upstox_index_map = {
+    "NIFTY 50": "NSE_INDEX|Nifty 50", "BANK NIFTY": "NSE_INDEX|Nifty Bank",
+    "FIN NIFTY": "NSE_INDEX|Nifty Fin Service", "SENSEX": "BSE_INDEX|SENSEX",
+    "NIFTY IT": "NSE_INDEX|Nifty IT", "MIDCAP": "NSE_INDEX|Nifty Mid Select"
 }
-sel_name = st.sidebar.selectbox("Stock", list(STOCKS.keys()))
-sel_inst = STOCKS[sel_name]
-tf = st.sidebar.selectbox("Timeframe", ["1minute","5minute","15minute"], index=1)
+stock_isin_map = {
+    "RELIANCE": "NSE_EQ|INE002A01018", "TCS": "NSE_EQ|INE467B01029", "INFY": "NSE_EQ|INE009A01021",
+    "HDFCBANK": "NSE_EQ|INE040A01034", "ICICIBANK": "NSE_EQ|INE090A01021", "SBIN": "NSE_EQ|INE062A01020"
+}
 
-def get_ltp(token, inst):
-    headers = {"Authorization": f"Bearer {token}"}
+st.sidebar.header("📋 WATCHLIST BOX")
+watch_input = st.sidebar.text_area("Watchlist comma se", "NIFTY 50, BANK NIFTY, RELIANCE, TCS", height=80)
+
+mode = st.sidebar.radio("Main Chart Kiska?", ["INDEX","STOCK"], index=0)
+
+if mode=="INDEX":
+    sel_idx = st.sidebar.selectbox("Index Chuno", list(upstox_index_map.keys()), index=0)
+    final_label = sel_idx
+    final_key_fixed = upstox_index_map[sel_idx]
+else:
+    sel_stock = st.sidebar.selectbox("Stock Chuno", list(stock_isin_map.keys()), index=0)
+    custom = st.sidebar.text_input("Ya Likh Do (RELIANCE)", "").strip().upper()
+    final_label = custom if custom else sel_stock
+    final_key_fixed = stock_isin_map.get(final_label) if not custom else None
+
+timeframe_ui = st.sidebar.selectbox("Timeframe", ["1minute","5minute","15minute","30minute","day"], index=2)
+st.sidebar.header("⚡ TICK SPEED")
+tick_mode = st.sidebar.selectbox("Speed", ["1 SEC ULTRA FAST ⚡","2 SEC FAST","5 SEC SAFE"], index=0)
+tick_map = {"1 SEC ULTRA FAST ⚡":1,"2 SEC FAST":2,"5 SEC SAFE":5}
+tick_sec = tick_map[tick_mode]
+auto_tick = st.sidebar.checkbox(f"TICK TICK ON ({tick_sec} sec)", True)
+
+historical_map = {"1minute":"1minute","5minute":"1minute","15minute":"30minute","30minute":"30minute","day":"day"}
+
+if not is_token:
+    st.error("Token dalo Topu No.1")
+    st.stop()
+
+def ema(s,n): return s.ewm(span=n, adjust=False).mean()
+def rsi_fixed(s, n=14):
+    delta=s.diff(); gain=delta.where(delta>0,0.0); loss=-delta.where(delta<0,0.0)
+    ag=gain.ewm(alpha=1/n, min_periods=n, adjust=False).mean()
+    al=loss.ewm(alpha=1/n, min_periods=n, adjust=False).mean()
+    rs=ag/al
+    rsi=100-(100/(1+rs))
+    return rsi.fillna(50)
+def supertrend_bull(df,p=10,m=3):
+    hl2=(df['High']+df['Low'])/2; atr=(df['High']-df['Low']).rolling(p).mean()
+    return df['Close'] > (hl2 - m*atr)
+
+def resolve_stock_key(token, symbol):
+    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    if symbol in upstox_index_map: return upstox_index_map[symbol]
+    if symbol in stock_isin_map: return stock_isin_map[symbol]
     try:
-        url = "https://api.upstox.com/v2/market-quote/ltp"
-        r = requests.get(url, headers=headers, params={"instrument_key": inst}, timeout=4).json()
-        if r.get("status")=="success":
-            return float(r["data"][inst]["last_price"])
-    except:
-        pass
+        url=f"https://api.upstox.com/v2/instruments/search?query={symbol}&exchanges=NSE&segments=EQ&records=5"
+        r=requests.get(url, headers=headers, timeout=10)
+        j=r.json()
+        if j.get("status")=="success" and len(j["data"])>0:
+            return j["data"][0].get("instrument_key")
+    except: pass
+    return f"NSE_EQ|{symbol}"
+
+def get_ltp(token,key):
+    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    url=f"https://api.upstox.com/v2/market-quote/ltp?instrument_key={quote(key, safe='')}"
+    try:
+        r=requests.get(url, headers=headers, timeout=8)
+        j=r.json()
+        if j.get("status")=="success":
+            v=list(j["data"].values())[0]
+            return v.get("last_price")
+    except: pass
     return None
 
-@st.cache_data(ttl=20)
-def get_candles(token, inst, interval):
-    headers = {"Authorization": f"Bearer {token}"}
+def get_candles(token,key,intra,hist):
+    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}
     try:
-        enc_inst = quote(inst, safe="")
-        url = f"https://api.upstox.com/v2/historical-candle/intraday/{enc_inst}/{interval}"
-        r = requests.get(url, headers=headers, timeout=5).json()
-        if r.get("status")=="success" and r["data"].get("candles"):
-            df = pd.DataFrame(r["data"]["candles"], columns=["Timestamp","Open","High","Low","Close","Volume","OI"])
-            df["Timestamp"] = pd.to_datetime(df["Timestamp"])
-            df = df.set_index("Timestamp")
-            df = df.sort_index()
-            return df
-    except:
-        pass
-    return None
+        url1=f"https://api.upstox.com/v2/historical-candle/intraday/{quote(key, safe='')}/{intra}"
+        r1=requests.get(url1, headers=headers, timeout=12)
+        j1=r1.json()
+        if j1.get("status")=="success" and len(j1["data"]["candles"])>10:
+            df=pd.DataFrame(j1["data"]["candles"], columns=["ts","Open","High","Low","Close","Volume","OI"])
+            df["ts"]=pd.to_datetime(df["ts"]); df.set_index("ts", inplace=True)
+            return df.sort_index(), f"TODAY {intra}"
+    except: pass
+    try:
+        to_date=datetime.now().strftime("%Y-%m-%d"); from_date=(datetime.now()-timedelta(days=60)).strftime("%Y-%m-%d")
+        url2=f"https://api.upstox.com/v2/historical-candle/{quote(key, safe='')}/{hist}/{to_date}/{from_date}"
+        r2=requests.get(url2, headers=headers, timeout=12)
+        j2=r2.json()
+        if j2.get("status")=="success" and len(j2["data"]["candles"])>0:
+            df=pd.DataFrame(j2["data"]["candles"], columns=["ts","Open","High","Low","Close","Volume","OI"])
+            df["ts"]=pd.to_datetime(df["ts"]); df.set_index("ts", inplace=True)
+            return df.sort_index(), f"LAST {hist}"
+    except: pass
+    return None, "FAIL"
 
-def calc_rsi(s):
-    d=s.diff(); g=d.where(d>0,0).rolling(14).mean(); l=-d.where(d<0,0).rolling(14).mean(); return 100-(100/(1+g/l))
-
-def analyze(df):
-    df["EMA9"]=df["Close"].ewm(span=9).mean(); df["EMA21"]=df["Close"].ewm(span=21).mean(); df["EMA50"]=df["Close"].ewm(span=50).mean()
-    df["RSI"]=calc_rsi(df["Close"]); df["VolSMA"]=df["Volume"].rolling(20).mean()
-    df["Typical"]=(df["High"]+df["Low"]+df["Close"])/3; df["VWAP"]=(df["Typical"]*df["Volume"]).cumsum()/df["Volume"].cumsum()
-    hl2=(df["High"]+df["Low"])/2; atr=(df["High"]-df["Low"]).rolling(10).mean()
-    df["C1"]=df["EMA9"]>df["EMA21"]; df["C2"]=df["Close"]>df["EMA9"]; df["C3"]=(df["RSI"]>=55)&(df["RSI"]<=80); df["C4"]=df["Close"]>(hl2+3*atr); df["C5"]=df["Close"]>df["EMA50"]
-    df["HEAT"]=df[["C1","C2","C3","C4","C5"]].sum(axis=1)
-    df["SM1"]=df["Close"]>df["High"].rolling(10).max().shift(1); df["SM2"]=df["Close"]>df["Low"].rolling(10).min().shift(1)
-    fvg=[True if i>2 and df["Low"].iloc[i]>df["High"].iloc[i-2] else False for i in range(len(df))]
-    df["SM3"]=pd.Series(fvg, index=df.index).rolling(10).max().astype(bool); df["SM4"]=df["Close"]>df["VWAP"]; df["SM5"]=df["Volume"]>df["VolSMA"]*1.2
-    df["SM_HEAT"]=df[["SM1","SM2","SM3","SM4","SM5"]].sum(axis=1); df["TOTAL"]=df["HEAT"]+df["SM_HEAT"]
+def analyze_df(df):
+    df['EMA9']=ema(df['Close'],9); df['EMA21']=ema(df['Close'],21); df['EMA50']=ema(df['Close'],50)
+    df['RSI']=rsi_fixed(df['Close'],14)
+    df['C1']=df['EMA9']>df['EMA21']; df['C2']=df['Close']>df['EMA9']
+    df['C3']=(df['RSI']>=55)&(df['RSI']<=80); df['C4']=supertrend_bull(df); df['C5']=df['Close']>df['EMA50']
+    df['HEAT']=df['C1'].astype(int)+df['C2'].astype(int)+df['C3'].astype(int)+df['C4'].astype(int)+df['C5'].astype(int)
+    df['ALL5']=df['C1']&df['C2']&df['C3']&df['C4']&df['C5']
+    df['ENTRY']=df['ALL5']&(df['ALL5'].shift(1)==False)
+    df['Body']=abs(df['Close']-df['Open']); df['UpperWick']=df['High']-df[['Open','Close']].max(axis=1)
+    df['Green']=df['Close']>df['Open']; df['Red']=df['Close']<df['Open']
+    df['Exit1']=df['Green']&df['Green'].shift(1)&df['Green'].shift(2)&(df['Close']>df['EMA21']*1.012)
+    df['Exit2']=(df['Green'].shift(1))&(df['Red'])&(df['Open']>df['Close'].shift(1))
+    df['Exit3']=(df['UpperWick']>2*df['Body']); df['Exit4']=df['Red']&df['Red'].shift(1)
+    df['Exit5']=(df['RSI'].shift(1)>75)&(df['RSI']<df['RSI'].shift(1))
+    df['EXIT']=df['Exit1']|df['Exit2']|df['Exit3']|df['Exit4']|df['Exit5']
     return df
 
-if not upstox_token:
-    st.warning("Token daal"); st.stop()
+if final_key_fixed is None:
+    final_key_fixed = resolve_stock_key(upstox_token, final_label)
 
-if st.button(f"🚀 {sel_name} CHECK", type="primary", width="stretch") or auto_tick:
-    ltp = get_ltp(upstox_token, sel_inst)
-    df = get_candles(upstox_token, sel_inst, tf)
-    
-    if ltp is None and df is None:
-        st.error("Token expire hai - naya token daal"); st.stop()
-
-    if df is not None:
-        df = analyze(df); last = df.iloc[-1]
-        price = ltp if ltp else last["Close"]
-        label = "LIVE" if ltp else "CLOSE"
-        heat = int(last["HEAT"]); sm_heat = int(last["SM_HEAT"]); total = int(last["TOTAL"])
-        rsi_val = float(last["RSI"])
-        
-        m1,m2,m3,m4=st.columns(4)
-        m1.metric(f"{sel_name} LTP ({label})", f"{price:.2f}", delta=datetime.now().strftime("%H:%M:%S"))
-        m2.metric("Technical 5/5", f"{heat}/5")
-        m3.metric("Smart 5/5", f"{sm_heat}/5")
-        m4.metric("TOTAL 10/10", f"{total}/10")
-
-        st.divider()
-        c1 = "✅" if last["C1"] else "❌"
-        c2 = "✅" if last["C2"] else "❌"
-        c3 = "✅" if last["C3"] else "❌"
-        c4 = "✅" if last["C4"] else "❌"
-        c5 = "✅" if last["C5"] else "❌"
-        st.write(f"Tech: EMA9>21:{c1} | Close>EMA9:{c2} | RSI {rsi_val:.1f}:{c3} | Super:{c4} | EMA50:{c5}")
-
-        sm1 = "✅" if last["SM1"] else "❌"
-        sm2 = "✅" if last["SM2"] else "❌"
-        sm3 = "✅" if last["SM3"] else "❌"
-        sm4 = "✅" if last["SM4"] else "❌"
-        sm5 = "✅" if last["SM5"] else "❌"
-        st.write(f"Smart: BOS:{sm1} | SAFE:{sm2} | FVG:{sm3} | VWAP:{sm4} | Vol:{sm5}")
-
-        if total==10:
-            st.success("🔥 10/10 FULL SIGNAL")
-            st.balloons()
-        elif total>=8:
-            st.warning(f"⚡ {total}/10 HALF SIGNAL")
+# WATCHLIST
+st.subheader("📋 WATCHLIST")
+watch_labels = [x.strip().upper() for x in watch_input.split(",") if x.strip()]
+watch_rows=[]
+for lbl in watch_labels[:6]:
+    k = resolve_stock_key(upstox_token, lbl)
+    ltp = get_ltp(upstox_token, k)
+    df_w,_ = get_candles(upstox_token, k, "15minute", "30minute")
+    heat=0; status="..."
+    if df_w is not None:
+        df_w=analyze_df(df_w)
+        last_w=df_w.iloc[-1]
+        heat=int(last_w['HEAT'])
+        if last_w['ALL5']:
+            status="🔥 5/5 BUY"
         else:
-            st.info(f"💤 {total}/10 - Wait")
-        
-        st.dataframe(df[["Close","HEAT","SM_HEAT","TOTAL","RSI"]].tail(15), width="stretch")
-    else:
-        st.metric(f"{sel_name} REAL LTP", f"Rs {ltp:.2f}")
+            status=f"{heat}/5 WAIT"
+    watch_rows.append({"Symbol":lbl,"LTP":ltp,"HEAT":heat,"Status":status})
+if watch_rows:
+    st.dataframe(pd.DataFrame(watch_rows), use_container_width=True)
+
+st.divider()
+
+# MAIN DATA
+df_main,_ = get_candles(upstox_token, final_key_fixed, timeframe_ui, historical_map[timeframe_ui])
+if df_main is None:
+    st.error("Data nahi aaya")
+    st.stop()
+df_main=analyze_df(df_main)
+last=df_main.iloc[-1]
+
+c1,c2,c3,c4=st.columns(4)
+c1.metric(f"{final_label} Price", f"{last['Close']:.2f}")
+c2.metric("HEAT", f"{int(last['HEAT'])}/5")
+
+# YAHI FIX KIYA HAI - IF ELSE
+if last['ALL5']:
+    c3.success("🔥 5/5 BUY")
+else:
+    c3.warning(f"WAIT {int(last['HEAT'])}/5")
+
+c4.metric("RSI", f"{last['RSI']:.0f}")
+
+# BACKTEST BUTTON
+st.divider()
+st.subheader("📊 BACKTEST - BUTTON WALA")
+
+backtest_btn = st.button("🔍 BACKTEST BUTTON DABA - PICHLA DATA DEKH", type="primary", use_container_width=True)
+
+if backtest_btn:
+    st.session_state['show_backtest'] = True
+
+if st.session_state.get('show_backtest', False):
+    with st.spinner(f"{final_label} ka pichla 60 din ka data nikal raha hu..."):
+        df_bt,_ = get_candles(upstox_token, final_key_fixed, "day", "day")
+        if df_bt is not None and len(df_bt)>20:
+            df_bt=analyze_df(df_bt)
+            trades=[]
+            for i in range(20, len(df_bt)-5):
+                if df_bt.iloc[i]['ENTRY']:
+                    entry = df_bt.iloc[i]['Close']
+                    future_close = df_bt.iloc[i+5]['Close']
+                    pnl_pct = (future_close-entry)/entry*100
+                    if pnl_pct > 0.5:
+                        result_str = "✅ WIN"
+                    else:
+                        result_str = "❌ LOSS"
+                    trades.append({"Date":str(df_bt.index[i].date()),"Entry":round(entry,2),"5 Din Baad":round(future_close,2),"PnL %":round(pnl_pct,2),"Result":result_str})
+            if trades:
+                df_trades=pd.DataFrame(trades)
+                total=len(df_trades)
+                wins=len(df_trades[df_trades['Result']=="✅ WIN"])
+                win_rate=wins/total*100 if total>0 else 0
+                m1,m2,m3,m4=st.columns(4)
+                m1.metric("Total 5/5 Trades", total)
+                m2.metric("WIN", wins)
+                m3.metric("Win Rate", f"{win_rate:.1f}%")
+                m4.metric("Avg Profit", f"{df_trades['PnL %'].mean():.2f}%")
+                st.success(f"👇 Ye raha pura data - {final_label} me pichle 60 din ka")
+                st.dataframe(df_trades, use_container_width=True)
+            else:
+                st.warning("Pichle 60 din me isme 5/5 ka signal hi nahi bana")
+        else:
+            st.error("Backtest data nahi aaya")
+else:
+    st.info("👆 Button daba - tere saamne data aa jayega ki kya kya hua tha")
+
+# CHART
+fig=go.Figure()
+fig.add_trace(go.Candlestick(x=df_main.index, open=df_main['Open'], high=df_main['High'], low=df_main['Low'], close=df_main['Close'], name="Price"))
+fig.add_trace(go.Scatter(x=df_main.index, y=df_main['EMA9'], name="EMA9"))
+fig.add_trace(go.Scatter(x=df_main.index, y=df_main['EMA21'], name="EMA21"))
+fig.add_trace(go.Scatter(x=df_main.index, y=df_main['EMA50'], name="EMA50"))
+fig.add_trace(go.Scatter(x=df_main[df_main['ENTRY']].index, y=df_main[df_main['ENTRY']]['Low']*0.998, mode='markers', marker=dict(symbol='triangle-up', size=15, color='green'), name="5/5 BUY"))
+fig.add_trace(go.Scatter(x=df_main[df_main['EXIT']].index, y=df_main[df_main['EXIT']]['High']*1.002, mode='markers', marker=dict(symbol='triangle-down', size=15, color='red'), name="EXIT"))
+fig.update_layout(height=650, xaxis_rangeslider_visible=False, title=f"{final_label} - {timeframe_ui} - V38.1 FIX")
+st.plotly_chart(fig, use_container_width=True)
+
+st.caption(f"V38.1 FIX LOCK | {final_label} | {tick_sec}SEC | Pure Token")
 
 if auto_tick:
-    time.sleep(tick_speed)
+    time.sleep(tick_sec)
     st.rerun()
