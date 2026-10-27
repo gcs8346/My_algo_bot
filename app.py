@@ -78,7 +78,7 @@ with c2:
 with c3:
     st.caption(f"TIME: {datetime.now().strftime('%H:%M:%S')} | Auto: {'ON' if st.session_state.tick else 'OFF'}")
 
-@st.fragment(run_every=3)
+@st.fragment(run_every=1)
 def live_board():
     for name, key in INSTRUMENTS.items():
         # V95 FIX: MCX + INDEX dono LTP se LIVE
