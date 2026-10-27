@@ -1,13 +1,11 @@
 import streamlit as st
 import requests
 import pandas as pd
-import time
 from datetime import datetime
 
-st.set_page_config(page_title="V94 SENSEX + OIL", layout="wide")
-st.title("V94 - BSE SENSEX + NSE + MCX - FINAL 🔴")
+st.set_page_config(page_title="V95 SENSEX + OIL LIVE", layout="wide")
+st.title("V95 - BSE SENSEX + NSE + MCX - FINAL LIVE ✅")
 
-# Token
 token_input = st.text_input("Upstox Token (Roz Naya)", type="password", key="token_box")
 if token_input and len(token_input.strip()) > 50:
     st.session_state.tok = token_input.strip().replace("Bearer ", "").strip()
@@ -65,7 +63,6 @@ def get_ltp_only(key):
         pass
     return 0, {}
 
-# --- AUTO REFRESH LOGIC (FIXED) ---
 if "tick" not in st.session_state:
     st.session_state.tick = True
 
@@ -84,17 +81,43 @@ with c3:
 @st.fragment(run_every=3)
 def live_board():
     for name, key in INSTRUMENTS.items():
-        if "MCX" in key:
+        # V95 FIX: MCX + INDEX dono LTP se LIVE
+        if "MCX" in key or "INDEX" in key:
             price, q = get_ltp_only(key)
             if price:
-                st.metric(f"{name} - OIL/GOLD LIVE", f"Rs.{price}", f"Vol:{q.get('volume','-')}")
+                # Agar INDEX hai to uska 10/10 logic try karo, nahi to LTP dikhao
+                df = get_df(key)
+                if df is not None and len(df) >= 20:
+                    close = df["close"]
+                    high = df["high"]
+                    low = df["low"]
+                    e9 = ema(close, 9).iloc[-1]
+                    e21 = ema(close, 21).iloc[-1]
+                    e50 = ema(close, 50).iloc[-1]
+                    r = rsi(close).iloc[-1]
+                    c = close.iloc[-1]
+                    tp = (df["high"] + df["low"] + df["close"]) / 3
+                    vwap = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
+                    vwap = vwap.iloc[-1]
+                    checks = {"EMA9>21": e9>e21, "Close>EMA9": c>e9, "RSI 50+": r>50, "Supertrend": c>e50 and r>50, "EMA50": c>e50, "BOS": c>high.iloc[-11:-1].max(), "SAFE": abs(c-e9)/c<0.004, "FVG": low.iloc[-1]>high.iloc[-3], "VWAP": c>vwap, "TIME": True}
+                    score = sum(checks.values())
+                    color = "#00ff88" if score>=7 else "#ffaa00" if score>=4 else "#ff4444"
+                    tag = "🔥 FIRE" if score>=7 else "⚠️ SETUP" if score>=4 else "💤 WAIT"
+                    st.markdown(f"### {name} - Rs.{c:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> - RSI:{r:.0f}", unsafe_allow_html=True)
+                else:
+                    st.metric(f"{name} - LTP LIVE", f"Rs.{price}", "Candle WAIT - LTP ON")
             else:
-                st.metric(name, "WAIT", key)
+                st.metric(name, "WAIT - Token check", key)
             continue
 
+        # EQ wale - full logic
         df = get_df(key)
-        if df is None or len(df) < 50:
-            st.metric(name, "WAIT", f"{key} - Market band ya candle nahi")
+        if df is None or len(df) < 20:
+            price, q = get_ltp_only(key)
+            if price:
+                st.metric(f"{name} - LTP", f"Rs.{price}")
+            else:
+                st.metric(name, "WAIT", key)
             continue
 
         close = df["close"]
@@ -108,28 +131,11 @@ def live_board():
         tp = (df["high"] + df["low"] + df["close"]) / 3
         vwap = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
         vwap = vwap.iloc[-1]
-
-        checks = {
-            "EMA9>21": e9 > e21,
-            "Close>EMA9": c > e9,
-            "RSI 50+": r > 50,
-            "Supertrend": c > e50 and r > 50,
-            "EMA50": c > e50,
-            "BOS": c > high.iloc[-11:-1].max(),
-            "SAFE": abs(c - e9) / c < 0.004,
-            "FVG": low.iloc[-1] > high.iloc[-3],
-            "VWAP": c > vwap,
-            "SENSEX TIME": True if "BSE" in key else datetime.now().hour < 15,
-        }
+        checks = {"EMA9>21": e9>e21, "Close>EMA9": c>e9, "RSI 50+": r>50, "Supertrend": c>e50 and r>50, "EMA50": c>e50, "BOS": c>high.iloc[-11:-1].max(), "SAFE": abs(c-e9)/c<0.004, "FVG": low.iloc[-1]>high.iloc[-3], "VWAP": c>vwap, "TIME": True}
         score = sum(checks.values())
-        color = "#00ff88" if score >= 7 else "#ffaa00" if score >= 4 else "#ff4444"
-        tag = "🔥 FIRE" if score >= 7 else "⚠️ SETUP" if score >= 4 else "💤 WAIT"
-
+        color = "#00ff88" if score>=7 else "#ffaa00" if score>=4 else "#ff4444"
+        tag = "🔥 FIRE" if score>=7 else "⚠️ SETUP" if score>=4 else "💤 WAIT"
         st.markdown(f"### {name} - Rs.{c:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> - RSI:{r:.0f}", unsafe_allow_html=True)
-        cols = st.columns(5)
-        for i, (k, v) in enumerate(checks.items()):
-            cols[i % 5].caption(f"{'✅' if v else '❌'} {k}")
 
 live_board()
-
-st.caption("V95 FIXED | No websocket error | SENSEX/NIFTY 10/10 | GOLD/CRUDE LTP LIVE")
+st.caption("V95 LIVE | SENSEX/NIFTY = LTP + 10/10 jab candle aaye | GOLD/CRUDE = LTP LIVE")
