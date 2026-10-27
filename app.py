@@ -65,11 +65,9 @@ def get_ltp_only(key):
         pass
     return 0, {}
 
+# --- AUTO REFRESH LOGIC (FIXED) ---
 if "tick" not in st.session_state:
     st.session_state.tick = True
-if "count" not in st.session_state:
-    st.session_state.count = 0
-st.session_state.count += 1
 
 c1, c2, c3 = st.columns([1,1,3])
 with c1:
@@ -81,59 +79,57 @@ with c2:
         st.session_state.tick = False
         st.rerun()
 with c3:
-    st.caption(f"COUNT: {st.session_state.count} | TIME: {datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"TIME: {datetime.now().strftime('%H:%M:%S')} | Auto: {'ON' if st.session_state.tick else 'OFF'}")
 
-for name, key in INSTRUMENTS.items():
-    # MCX WALE - HALKA LTP ONLY (V90 wala logic - tez)
-    if "MCX" in key:
-        price, q = get_ltp_only(key)
-        if price:
-            st.metric(f"{name} - OIL/GOLD LIVE", f"Rs.{price}", f"Vol:{q.get('volume','-')}")
-        else:
-            st.metric(name, "WAIT", key)
-        continue
+@st.fragment(run_every=3)
+def live_board():
+    for name, key in INSTRUMENTS.items():
+        if "MCX" in key:
+            price, q = get_ltp_only(key)
+            if price:
+                st.metric(f"{name} - OIL/GOLD LIVE", f"Rs.{price}", f"Vol:{q.get('volume','-')}")
+            else:
+                st.metric(name, "WAIT", key)
+            continue
 
-    # NSE / BSE WALE - FULL 10/10 LOGIC
-    df = get_df(key)
-    if df is None or len(df) < 50:
-        st.metric(name, "WAIT", f"{key} - Candle nahi aaya")
-        continue
+        df = get_df(key)
+        if df is None or len(df) < 50:
+            st.metric(name, "WAIT", f"{key} - Market band ya candle nahi")
+            continue
 
-    close = df["close"]
-    high = df["high"]
-    low = df["low"]
-    e9 = ema(close, 9).iloc[-1]
-    e21 = ema(close, 21).iloc[-1]
-    e50 = ema(close, 50).iloc[-1]
-    r = rsi(close).iloc[-1]
-    c = close.iloc[-1]
-    tp = (df["high"] + df["low"] + df["close"]) / 3
-    vwap = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
-    vwap = vwap.iloc[-1]
+        close = df["close"]
+        high = df["high"]
+        low = df["low"]
+        e9 = ema(close, 9).iloc[-1]
+        e21 = ema(close, 21).iloc[-1]
+        e50 = ema(close, 50).iloc[-1]
+        r = rsi(close).iloc[-1]
+        c = close.iloc[-1]
+        tp = (df["high"] + df["low"] + df["close"]) / 3
+        vwap = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
+        vwap = vwap.iloc[-1]
 
-    checks = {
-        "EMA9>21": e9 > e21,
-        "Close>EMA9": c > e9,
-        "RSI 50+": r > 50,
-        "Supertrend": c > e50 and r > 50,
-        "EMA50": c > e50,
-        "BOS": c > high.iloc[-11:-1].max(),
-        "SAFE": abs(c - e9) / c < 0.004,
-        "FVG": low.iloc[-1] > high.iloc[-3],
-        "VWAP": c > vwap,
-        "SENSEX TIME": True if "BSE" in key else datetime.now().hour < 15,
-    }
-    score = sum(checks.values())
-    color = "#00ff88" if score >= 7 else "#ffaa00" if score >= 4 else "#ff4444"
-    tag = "🔥 FIRE" if score >= 7 else "⚠️ SETUP" if score >= 4 else "💤 WAIT"
+        checks = {
+            "EMA9>21": e9 > e21,
+            "Close>EMA9": c > e9,
+            "RSI 50+": r > 50,
+            "Supertrend": c > e50 and r > 50,
+            "EMA50": c > e50,
+            "BOS": c > high.iloc[-11:-1].max(),
+            "SAFE": abs(c - e9) / c < 0.004,
+            "FVG": low.iloc[-1] > high.iloc[-3],
+            "VWAP": c > vwap,
+            "SENSEX TIME": True if "BSE" in key else datetime.now().hour < 15,
+        }
+        score = sum(checks.values())
+        color = "#00ff88" if score >= 7 else "#ffaa00" if score >= 4 else "#ff4444"
+        tag = "🔥 FIRE" if score >= 7 else "⚠️ SETUP" if score >= 4 else "💤 WAIT"
 
-    st.markdown(f"### {name} - Rs.{c:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> - RSI:{r:.0f}", unsafe_allow_html=True)
-    cols = st.columns(5)
-    for i, (k, v) in enumerate(checks.items()):
-        cols[i % 5].caption(f"{'✅' if v else '❌'} {k}")
+        st.markdown(f"### {name} - Rs.{c:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> - RSI:{r:.0f}", unsafe_allow_html=True)
+        cols = st.columns(5)
+        for i, (k, v) in enumerate(checks.items()):
+            cols[i % 5].caption(f"{'✅' if v else '❌'} {k}")
 
-st.caption("V94 | SENSEX/NIFTY = 10/10 Logic | GOLD/CRUDE = LTP LIVE (Halka weight)")
+live_board()
 
-if st.session_state.tick:
-    time.sleep(3)
-    st.rerun()
+st.caption("V95 FIXED | No websocket error | SENSEX/NIFTY 10/10 | GOLD/CRUDE LTP LIVE")
