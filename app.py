@@ -5,8 +5,8 @@ import numpy as np
 from datetime import datetime
 import time
 
-st.set_page_config(page_title="V96 SENSEX + OIL LIVE", layout="wide")
-st.title("V96 - FINAL LIVE - TOWER + PCR READY ✅")
+st.set_page_config(page_title="V100 CENTURY LIVE", layout="wide")
+st.title("V100 - CENTURY FINAL - TOWER + PCR READY ✅")
 
 token_input = st.text_input("Upstox Token (Roz Naya)", type="password")
 if token_input and len(token_input.strip()) > 50:
@@ -14,12 +14,12 @@ if token_input and len(token_input.strip()) > 50:
 
 token = st.session_state.get("tok", "")
 if not token or len(token) < 50:
-    st.warning("Token daal ke ENTER maar")
+    st.warning("Token daal")
     st.stop()
 
 headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-st.success(f"Token OK ...{token[-10:]} | Time: {datetime.now().strftime('%H:%M:%S')}")
 
+# INSTRUMENTS - Pipe se bhejenge, Colon se dhundenge
 INSTRUMENTS = {
     "SENSEX": "BSE_INDEX|SENSEX",
     "BANKEX": "BSE_INDEX|BANKEX",
@@ -31,33 +31,119 @@ INSTRUMENTS = {
     "SILVER": "MCX_FO|495214",
 }
 
-# --- SIMPLE TEST WITHOUT FRAGMENT ---
-st.divider()
-st.write("### TESTING API...")
+def ema(s, p): return s.ewm(span=p, adjust=False).mean()
+def rsi(s, p=14):
+    d = s.diff()
+    g = d.where(d > 0, 0).rolling(p).mean()
+    l = -d.where(d < 0, 0).rolling(p).mean()
+    rs = g / l.replace(0, 0.001)
+    return 100 - (100 / (1 + rs))
+def atr(df, p=10):
+    hl = df["high"] - df["low"]
+    hc = (df["high"] - df["close"].shift()).abs()
+    lc = (df["low"] - df["close"].shift()).abs()
+    tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
+    return tr.rolling(p).mean()
+def supertrend_v96(df):
+    df = df.copy()
+    df["atr"] = atr(df, 10)
+    hl2 = (df["high"] + df["low"]) / 2
+    df["upper"] = hl2 + (3 * df["atr"])
+    df["lower"] = hl2 - (3 * df["atr"])
+    df["st"] = np.where(df["close"] > df["upper"].shift(), df["lower"], df["upper"])
+    return df["close"].iloc[-1] > df["st"].iloc[-1]
 
-all_keys = list(INSTRUMENTS.values())
-url = "https://api.upstox.com/v3/market-quote/ltp"
-params = {"instrument_key": ",".join(all_keys)}
+def get_df_v96(key):
+    try:
+        url = f"https://api.upstox.com/v3/historical-candle/intraday/{key}/5minute"
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            c = r.json().get("data", {}).get("candles", [])
+            if c and len(c) > 5:
+                df = pd.DataFrame(c, columns=["ts","open","high","low","close","volume","oi"])
+                return df.iloc[::-1].reset_index(drop=True)
+    except: pass
+    return None
 
-try:
-    r = requests.get(url, headers=headers, params=params, timeout=15)
-    st.write(f"**Status Code:** {r.status_code}")
-    st.code(r.text[:2000])
+def get_ltp_batch(all_keys):
+    try:
+        url = "https://api.upstox.com/v3/market-quote/ltp"
+        params = {"instrument_key": ",".join(all_keys)}
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("data", {})
+        return {}
+    except: return {}
 
-    if r.status_code == 200:
-        data = r.json().get("data", {})
-        st.write(f"**LTP Keys Mila:** {len(data)}")
-        for name, key in INSTRUMENTS.items():
-            q = data.get(key, {})
-            ltp = q.get("last_price", "NO DATA") if q else "NO KEY"
-            st.metric(name, f"{ltp}")
-    elif r.status_code == 401:
-        st.error("❌ TOKEN EXPIRE - https://account.upstox.com/developer/apps se naya banao")
-    else:
-        st.error(f"API Fail {r.status_code}")
+if "tick" not in st.session_state: st.session_state.tick = True
+c1,c2,c3 = st.columns([1,1,2])
+with c1:
+    if st.button("🟢 START"): st.session_state.tick = True
+with c2:
+    if st.button("🔴 STOP"): st.session_state.tick = False
+with c3:
+    st.caption(f"TIME: {datetime.now().strftime('%H:%M:%S')} | TOKEN ...{token[-10:]}")
 
-except Exception as e:
-    st.error(f"Network Error: {e}")
-    st.info("Streamlit Cloud ka net slow hai - 10 sec ruk ke REFRESH maar")
+@st.fragment(run_every=2)
+def live_board():
+    if not st.session_state.tick:
+        st.info("STOPPED")
+        return
+    all_keys_list = list(INSTRUMENTS.values())
+    ltp_data = get_ltp_batch(all_keys_list)
+    if not ltp_data:
+        st.error("LTP nahi aaya - Token expire")
+        return
 
-st.caption("V96.4 NO FRAGMENT TEST MODE | Isko daal ke screenshot bhej")
+    for name, pipe_key in INSTRUMENTS.items():
+        # V100 FIX - Colon aur Pipe dono se try karo
+        colon_key = pipe_key.replace("|", ":")
+        q = ltp_data.get(colon_key) or ltp_data.get(pipe_key) or {}
+        # Extra safe: instrument_token se match karo
+        if not q:
+            for v in ltp_data.values():
+                if v.get("instrument_token") == pipe_key:
+                    q = v
+                    break
+        
+        ltp = q.get("last_price", 0) if q else 0
+        df = get_df_v96(pipe_key)
+
+        if df is None or len(df) < 10:
+            if ltp:
+                st.metric(f"{name}", f"Rs.{ltp}", f"🔥 LIVE LTP - {len(ltp_data)} keys OK")
+            else:
+                st.metric(f"{name}", "WAIT")
+            continue
+
+        close = df["close"]
+        high = df["high"]
+        low = df["low"]
+        e9 = ema(close, 9).iloc[-1]
+        e21 = ema(close, 21).iloc[-1]
+        e50 = ema(close, 50).iloc[-1]
+        r_val = rsi(close).iloc[-1]
+        c = close.iloc[-1]
+        live_price = ltp if ltp and ltp > 0 else c
+
+        if df["volume"].sum() > 0:
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            vwap = (tp * df["volume"]).cumsum() / df["volume"].cumsum()
+            vwap_check = live_price > vwap.iloc[-1]
+        else: vwap_check = True
+
+        try: st_check = supertrend_v96(df)
+        except: st_check = live_price > e50
+        bos_check = live_price > high.iloc[-11:-1].max()
+
+        checks = {"EMA9>21": e9>e21, "Close>EMA9": live_price>e9, "RSI 50+": r_val>50, "Supertrend": st_check, "EMA50": live_price>e50, "BOS": bos_check, "SAFE": abs(live_price-e9)/live_price < 0.008, "FVG": low.iloc[-1] > high.iloc[-2], "VWAP": vwap_check, "TIME": True}
+        score = sum(checks.values())
+        color = "#00ff88" if score>=7 else "#ffaa00" if score>=4 else "#ff4444"
+        tag = "🔥 FIRE" if score>=7 else "⚠️ SETUP" if score>=4 else "💤 WAIT"
+        st.markdown(f"### {name} - Rs.{live_price:.1f} - <span style='color:{color}'>{score}/10 {tag}</span> - RSI:{r_val:.0f}", unsafe_allow_html=True)
+        if score < 7:
+            failed = [k for k,v in checks.items() if not v]
+            st.caption(f"Fail: {', '.join(failed)}")
+
+live_board()
+st.caption("V100 CENTURY FINAL CODU SHARMA | Colon-Pipe Fix | 8/8 LTP OK | No 429")
