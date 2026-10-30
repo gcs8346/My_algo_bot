@@ -94,3 +94,13 @@ for i, (name, key) in enumerate(SYMBOLS.items()):
 st.caption(f"Last Updated: {datetime.now().strftime('%H:%M:%S')}")
 if st.button("🔄 Refresh Kar"):
     st.rerun()
+import streamlit as st, requests, urllib.parse
+st.sidebar.text_input("Token", type="password", key="token")
+token = st.session_state.get("token")
+
+if token:
+    headers = {'Authorization': f'Bearer {token}'}
+    key = urllib.parse.quote("NSE_INDEX|Nifty 50", safe='')
+    url = f"https://api.upstox.com/v2/historical-candle/intraday/{key}/1minute"
+    r = requests.get(url, headers=headers).json()
+    st.write(r) # Ye kya dikha raha hai bata
