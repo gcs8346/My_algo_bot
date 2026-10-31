@@ -53,7 +53,7 @@ def get_candles(k, timeframe):
         r1 = requests.get(url1, headers=headers, timeout=10)
         if r1.status_code == 200:
             candles = r1.json().get('data', {}).get('candles', [])
-            if candles and len(candles) > 5:
+            if candles and len(candles) > 2:
                 df = pd.DataFrame(candles, columns=['time','open','high','low','close','volume','oi'])
                 df['time']=pd.to_datetime(df['time'])
                 df=df.sort_values('time').set_index('time')
@@ -61,7 +61,6 @@ def get_candles(k, timeframe):
                     mins=5 if timeframe=="5minute" else 15
                     df=df.resample(f'{mins}min').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum','oi':'last'}).dropna()
                 return df.reset_index()
-
         to_date = datetime.now()
         while to_date.weekday() >= 5:
             to_date -= timedelta(days=1)
@@ -119,30 +118,56 @@ def get_option_chain_oi(underlying="NSE_INDEX|Nifty 50"):
         return None
 
 def get_signal(df, ltp, oi_data):
+    if df is None or len(df) < 2:
+        return f"💤 WAIT", f"Data kam hai", 0, 0, 0, 0
     df['EMA9']=df['close'].ewm(span=9).mean()
     df['EMA21']=df['close'].ewm(span=21).mean()
     df['EMA50']=df['close'].ewm(span=50).mean()
-    df['RSI']=100-(100/(1+(df['close'].diff().where(lambda x: x>0, 0).rolling(14).mean() / -df['close'].diff().where(lambda x: x<0, 0).rolling(14).mean())))
-    df['Res']=df['high'].rolling(20).max()
-    df['Sup']=df['low'].rolling(20).min()
+    delta = df['close'].diff()
+    gain = delta.where(delta>0, 0).rolling(14).mean()
+    loss = -delta.where(delta<0, 0).rolling(14).mean()
+    rs = gain / loss.replace(0, 0.001)
+    df['RSI'] = 100 - (100/(1+rs))
+    df['RSI'] = df['RSI'].fillna(50)
+    df['Res']=df['high'].rolling(5).max()
+    df['Sup']=df['low'].rolling(5).min()
     df['TR']=pd.concat([df['high']-df['low'], (df['high']-df['close'].shift()).abs(), (df['low']-df['close'].shift()).abs()], axis=1).max(axis=1)
-    df['ATR']=df['TR'].rolling(10).mean()
+    df['ATR']=df['TR'].rolling(10).mean().fillna(df['close']*0.002)
     last=df.iloc[-1]
     diff=(ltp-last['close']) if ltp else 0
     atr_val=last['ATR'] if pd.notna(last['ATR']) else last['close']*0.002
-    top_break=(ltp>df['high'].iloc[-4:-1].max()) if ltp else False
-    score=sum([last['EMA9']>last['EMA21'], (ltp>last['EMA9']) if ltp else False, last['RSI']>52, (ltp>last['EMA50']) if ltp else False, top_break])
+    if len(df) >= 4:
+        top_break=(ltp>df['high'].iloc[-4:-1].max()) if ltp else False
+    else:
+        top_break=False
+    try:
+        e9 = last['EMA9'] if pd.notna(last['EMA9']) else last['close']
+        e21 = last['EMA21'] if pd.notna(last['EMA21']) else last['close']
+        e50 = last['EMA50'] if pd.notna(last['EMA50']) else last['close']
+        rsi_val = last['RSI'] if pd.notna(last['RSI']) else 50
+    except:
+        e9=e21=e50=last['close']
+        rsi_val=50
+    score=sum([e9>e21, (ltp>e9) if ltp else False, rsi_val>52, (ltp>e50) if ltp else False, top_break])
+    res_val = last['Res'] if pd.notna(last['Res']) else last['high']
+    sup_val = last['Sup'] if pd.notna(last['Sup']) else last['low']
     if oi_data:
         ce_chg=oi_data.get('ce_chg',0)
         pe_chg=oi_data.get('pe_chg',0)
         if ce_chg < -500000 and top_break:
-            return f"🔴 MINUS OI TRAP", f"SL HUNT! CE OI {ce_chg/100000:.1f}L MINUS", last['Res'], last['Sup'], score, diff
-        if pe_chg < -500000 and ltp and ltp < last['Sup']*1.002:
-            return f"🟢 MINUS OI BULL", f"BULL REVERSAL! PE OI {pe_chg/100000:.1f}L MINUS", last['Res'], last['Sup'], score, diff
-    if last['EMA9']>last['EMA21'] and diff < -15:
-        return f"⚠️ {score}/5 TRAP", f"FAKE BUY! LIVE {diff:+.1f} gir raha", last['Res'], last['Sup'], score, diff
+            return f"🔴 MINUS OI TRAP", f"SL HUNT! CE OI {ce_chg/100000:.1f}L MINUS", res_val, sup_val, score, diff
+        if pe_chg < -500000 and ltp and ltp < sup_val*1.002:
+            return f"🟢 MINUS OI BULL", f"BULL REVERSAL! PE OI {pe_chg/100000:.1f}L MINUS", res_val, sup_val, score, diff
+    if e9>e21 and diff < -15:
+        return f"⚠️ {score}/5 TRAP", f"FAKE BUY! LIVE {diff:+.1f} gir raha", res_val, sup_val, score, diff
     if score>=4:
-                return f"💤 {score}/5 WAIT", f"Sideways RSI {last['RSI']:.1f}", last['Res'], last['Sup'], score, diff
+        return f"🔥 {score}/5 FIRE BUY", f"BUY OK | TGT {(ltp if ltp else last['close'])+atr_val*1.5:.1f}", res_val, sup_val, score, diff
+    elif score>=2 and top_break:
+        return f"⚡ {score}/5 SCALP BUY", f"SCALP FAST", res_val, sup_val, score, diff
+    elif e9<e21:
+        return f"🔻 {score}/5 SELL", f"SELL Trend", res_val, sup_val, score, diff
+    else:
+        return f"💤 {score}/5 WAIT", f"Sideways RSI {rsi_val:.1f}", res_val, sup_val, score, diff
 
 SYMBOLS = {
     "NIFTY 50": "NSE_INDEX|Nifty 50",
