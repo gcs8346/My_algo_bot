@@ -5,27 +5,27 @@ import urllib.parse
 from datetime import datetime, timedelta
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Topu V17 FINAL 100% FIX", layout="wide")
+st.set_page_config(page_title="Topu V17 FINAL", layout="wide")
 st.title("🔥 Topu V17 - 100% FIXED | Ab Data Ayega")
-st.caption("Upstox ka date ulta tha - Ab sahi kar diya")
+st.caption("Saturday fix + 15 Instrument + Beep + Minus OI | Final")
 
 st.sidebar.header("Topu ka Upstox Setup")
 token = st.sidebar.text_input("Naya Token Daal", type="password")
-tf = st.sidebar.selectbox("Timeframe", ["1minute", "5minute", "15minute"], index=0)
+tf = st.sidebar.selectbox("Timeframe", ["1minute","5minute","15minute"], index=0)
 beep_on = st.sidebar.checkbox("🔊 BEEP ON/OFF", value=True)
 
 if not token:
-    st.warning("Token daal")
+    st.warning("Pehle Token daal bhai")
     st.stop()
 
 headers = {'Authorization': f'Bearer {token}', 'Accept': 'application/json'}
 
-def play_beep(signal_type="FIRE"):
+def play_beep(t="FIRE"):
     try:
-        if "TRAP" in signal_type:
-            js = """<script>try{var ctx=new(window.AudioContext||window.webkitAudioContext)();function beep(f,t){var o=ctx.createOscillator();var g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.value=1;o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.3);}beep(900,0);beep(900,0.4);beep(900,0.8);}catch(e){}</script>"""
+        if "TRAP" in t:
+            js = """<script>try{var c=new(window.AudioContext||window.webkitAudioContext)();function b(f,t){var o=c.createOscillator();var g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;g.gain.value=1;o.start(c.currentTime+t);o.stop(c.currentTime+t+0.3);}b(900,0);b(900,0.4);b(900,0.8);}catch(e){}</script>"""
         else:
-            js = """<script>try{var ctx=new(window.AudioContext||window.webkitAudioContext)();var o=ctx.createOscillator();var g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=800;g.gain.value=1;o.start();o.stop(ctx.currentTime+0.5);}catch(e){}</script>"""
+            js = """<script>try{var c=new(window.AudioContext||window.webkitAudioContext)();var o=c.createOscillator();var g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=800;g.gain.value=1;o.start();o.stop(c.currentTime+0.5);}catch(e){}</script>"""
         components.html(js, height=0, width=0)
     except: pass
 
@@ -45,8 +45,6 @@ def get_ltp(k):
 def get_candles(k, timeframe):
     try:
         enc = urllib.parse.quote(k, safe='')
-        
-        # 1. Intraday try (Monday-Friday LIVE)
         url1 = f"https://api.upstox.com/v2/historical-candle/intraday/{enc}/1minute"
         r1 = requests.get(url1, headers=headers, timeout=10)
         if r1.status_code == 200:
@@ -59,21 +57,15 @@ def get_candles(k, timeframe):
                     df=df.resample(f'{mins}min').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum','oi':'last'}).dropna()
                 return df.reset_index()
 
-        # 2. Historical - YAHAN FIX KIYA - Upstox me to_date PEHLE aata hai
         to_date = datetime.now()
-        while to_date.weekday() >= 5: # Sat/Sun -> Friday
-            to_date -= timedelta(days=1)
+        while to_date.weekday() >= 5: to_date -= timedelta(days=1)
         from_date = to_date - timedelta(days=5)
-        
         to_str = to_date.strftime("%Y-%m-%d")
         from_str = from_date.strftime("%Y-%m-%d")
-        
-        # FIX: to_str PEHLE, from_str BAAD ME
+        # FIX: to_date PEHLE, from_date BAAD ME
         url2 = f"https://api.upstox.com/v2/historical-candle/{enc}/1minute/{to_str}/{from_str}"
         r2 = requests.get(url2, headers=headers, timeout=15)
         if r2.status_code != 200:
-            st.error(f"API Error: {r2.text[:300]}")
-            return None
         candles = r2.json().get('data', {}).get('candles', [])
         if not candles: return None
         df = pd.DataFrame(candles, columns=['time','open','high','low','close','volume','oi'])
@@ -82,9 +74,7 @@ def get_candles(k, timeframe):
             mins=5 if timeframe=="5minute" else 15
             df=df.resample(f'{mins}min').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum','oi':'last'}).dropna()
         return df.reset_index()
-    except Exception as e:
-        st.error(f"Exception: {e}")
-        return None
+    except: return None
 
 def get_option_chain_oi(underlying="NSE_INDEX|Nifty 50"):
     try:
@@ -132,10 +122,13 @@ def get_signal(df, ltp, oi_data):
 
 SYMBOLS = {
     "NIFTY 50": "NSE_INDEX|Nifty 50", "BANKNIFTY": "NSE_INDEX|Nifty Bank",
-    "FINNIFTY": "NSE_INDEX|Nifty Fin Service", "SENSEX": "BSE_INDEX|SENSEX", "MIDCAP": "NSE_INDEX|Nifty Mid Select",
-    "RELIANCE": "NSE_EQ|INE002A01018", "HDFCBANK": "NSE_EQ|INE040A01034", "ICICIBANK": "NSE_EQ|INE090A01021",
-    "TCS": "NSE_EQ|INE467B01029", "INFY": "NSE_EQ|INE009A01021", "SBIN": "NSE_EQ|INE062A01020",
-    "BHARTIARTL": "NSE_EQ|INE397D01024", "ITC": "NSE_EQ|INE154A01025", "LT": "NSE_EQ|INE018A01030", "BAJFINANCE": "NSE_EQ|INE296A01024",
+    "FINNIFTY": "NSE_INDEX|Nifty Fin Service", "SENSEX": "BSE_INDEX|SENSEX", 
+    "MIDCAP 100": "NSE_INDEX|Nifty Midcap 100",
+    "RELIANCE": "NSE_EQ|INE002A01018", "HDFCBANK": "NSE_EQ|INE040A01034", 
+    "ICICIBANK": "NSE_EQ|INE090A01021", "TCS": "NSE_EQ|INE467B01029", 
+    "INFY": "NSE_EQ|INE009A01021", "SBIN": "NSE_EQ|INE062A01020",
+    "BHARTIARTL": "NSE_EQ|INE397D01024", "ITC": "NSE_EQ|INE154A01025", 
+    "LT": "NSE_EQ|INE018A01030", "BAJFINANCE": "NSE_EQ|INE296A01024",
 }
 
 oi_info = get_option_chain_oi("NSE_INDEX|Nifty 50")
@@ -143,6 +136,8 @@ if oi_info:
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("PCR", f"{oi_info['pcr']:.2f}"); c2.metric("CE Chg", f"{oi_info['ce_chg']/100000:.1f}L", delta_color="inverse")
     c3.metric("PE Chg", f"{oi_info['pe_chg']/100000:.1f}L"); c4.metric("ATM", f"{oi_info['atm']}")
+    if oi_info['minus_ce']: st.error(f"🔴 CE MINUS: {', '.join(oi_info['minus_ce'][:4])}")
+    if oi_info['minus_pe']: st.success(f"🟢 PE MINUS: {', '.join(oi_info['minus_pe'][:4])}")
 
 cols = st.columns(3)
 beep_triggered=False
@@ -154,7 +149,7 @@ for i, (name, key) in enumerate(SYMBOLS.items()):
             display_ltp = ltp if ltp else df.iloc[-1]['close']
             sig, reason, res, sup, score, diff = get_signal(df, display_ltp, oi_info)
             if ltp: st.metric(f"{name} LIVE", f"{ltp:.2f}", f"{diff:+.2f}")
-            else: st.metric(f"{name} (Fri)", f"{display_ltp:.2f}", "Weekend")
+            else: st.metric(f"{name} (Fri)", f"{display_ltp:.2f}", "Weekend Data")
             if "TRAP" in sig: 
                 st.error(f"{sig} - {reason}")
                 if beep_on and not beep_triggered: play_beep("TRAP"); beep_triggered=True
@@ -164,8 +159,11 @@ for i, (name, key) in enumerate(SYMBOLS.items()):
             elif "SCALP" in sig: st.info(f"{sig} - {reason}")
             elif "SELL" in sig: st.error(f"{sig} - {reason}")
             else: st.warning(f"{sig} - {reason}")
+            st.caption(f"Res: {res:.1f} | Sup: {sup:.1f}")
         else:
             st.error(f"{name} - Data nahi")
 
-if st.button("🔔 TEST BEEP"): play_beep("FIRE")
+st.divider()
+if st.button("🔔 TEST BEEP"): play_beep("FIRE"); st.success("Beep baja?")
 if st.button("🔄 Refresh"): st.rerun()
+st.caption(f"Update: {datetime.now().strftime('%H:%M:%S')} | V17 FINAL 100% FIXED")
