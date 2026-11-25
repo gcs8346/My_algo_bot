@@ -25,7 +25,7 @@ if 'price_history' not in st.session_state:
 if 'avg_entries' not in st.session_state:
     st.session_state.avg_entries = []
 
-st.title("🔥 Topu V18 - MAKHAN | Auto-Refresh + OI Meter + Torture Alert")
+st.title("🔥 Topu V18 - MAKHAN | Auto-Refresh + OI Meter + Torture Alert + 3 Batti")
 
 st.sidebar.header("Topu ka Upstox Setup")
 token = st.sidebar.text_input("Naya Token Daal", type="password")
@@ -115,6 +115,44 @@ def get_option_chain_oi(underlying="NSE_INDEX|Nifty 50"):
         return {"pcr": pcr, "ce_chg": total_ce_chg, "pe_chg": total_pe_chg, "minus_ce": minus_ce, "minus_pe": minus_pe, "atm": atm, "total_ce": total_ce_oi, "total_pe": total_pe_oi}
     except: return None
 
+# ============ NAYA - 3 BATTI CHECKLIST ============
+def get_3batti(df, df15, ltp):
+    # Default - sab RED
+    b1 = False; b2 = False; b3 = False
+    b1_txt = "Data nahi"; b2_txt = "Data nahi"; b3_txt = "Data nahi"
+    try:
+        if df is not None and len(df) >= 6 and ltp:
+            # BATTI 1 - Upar uth raha hai?
+            # LTP pichli 3 candle ke close se upar hai?
+            last3_close = df['close'].iloc[-3:].max()
+            last_low = df['low'].iloc[-1]
+            # Aur LTP neeche se upar uth raha hai - last candle ka low se upar
+            if ltp > last3_close or (ltp > df['close'].iloc[-2] and ltp > df['close'].iloc[-3]):
+                b1 = True; b1_txt = f"Uth raha hai LTP {ltp:.1f} > {last3_close:.1f}"
+            else:
+                b1 = False; b1_txt = f"Atka hai LTP {ltp:.1f} < {last3_close:.1f}"
+
+            # BATTI 2 - Pehla Low bacha hai?
+            # Pichle 10 candle ka sabse neeche wala Low
+            prev_low = df['low'].iloc[-11:-1].min() if len(df) >= 11 else df['low'].iloc[:-1].min()
+            curr_low = df['low'].iloc[-1]
+            if curr_low >= prev_low - 0.5:  # Low toda nahi
+                b2 = True; b2_txt = f"Low Bacha {curr_low:.1f} >= {prev_low:.1f}"
+            else:
+                b2 = False; b2_txt = f"Low Toota {curr_low:.1f} < {prev_low:.1f}"
+        if df15 is not None and len(df15) >= 2:
+            # BATTI 3 - 15 min batti Hari hai?
+            # Last CLOSED 15min candle - agar last wali abhi chal rahi hai to usse pehle wali lo
+            last15 = df15.iloc[-1]
+            # Agar last candle ka close > open to Hari
+            if last15['close'] > last15['open']:
+                b3 = True; b3_txt = f"15min Hari {last15['close']:.1f} > {last15['open']:.1f}"
+            else:
+                b3 = False; b3_txt = f"15min Laal {last15['close']:.1f} < {last15['open']:.1f}"
+    except:
+        pass
+    return (b1, b1_txt), (b2, b2_txt), (b3, b3_txt)
+
 def get_signal(df, ltp, oi_data):
     if df is None or len(df) < 2: return f"💤 WAIT", f"Data kam hai", 0, 0, 0, 0
     df['EMA9']=df['close'].ewm(span=9).mean(); df['EMA21']=df['close'].ewm(span=21).mean(); df['EMA50']=df['close'].ewm(span=50).mean()
@@ -190,6 +228,8 @@ cols = st.columns(3)
 beep_triggered=False; torture_alerts = []
 for i, (name, key) in enumerate(SYMBOLS.items()):
     df = get_candles(key, tf); ltp = get_ltp(key)
+    # 15min data sirf 3-batti ke liye - agar tf pehle se 15min hai to wahi use karo
+    df15 = df if tf == "15minute" else get_candles(key, "15minute")
     with cols[i % 3]:
         st.subheader(name)
         if df is not None and ltp:
@@ -206,6 +246,22 @@ for i, (name, key) in enumerate(SYMBOLS.items()):
             else: st.warning(f"{sig} - {reason}")
             st.caption(f"Res: {res:.1f} | Sup: {sup:.1f}")
 
+            # ===== 3 BATTI CHECKLIST - NAYA =====
+            (b1, b1_txt), (b2, b2_txt), (b3, b3_txt) = get_3batti(df, df15, ltp)
+            st.markdown("**🚦 3 Batti Checklist - Trap ya Asli?**")
+            c_b1, c_b2, c_b3 = st.columns(3)
+            c_b1.markdown(f"{'🟢' if b1 else '🔴'} **Upar Uth?**")
+            c_b1.caption(b1_txt)
+            c_b2.markdown(f"{'🟢' if b2 else '🔴'} **Low Bacha?**")
+            c_b2.caption(b2_txt)
+            c_b3.markdown(f"{'🟢' if b3 else '🔴'} **15min Hari?**")
+            c_b3.caption(b3_txt)
+            if b1 and b2 and b3:
+                st.success("✅ TEENO GREEN - ENTRY LE LE")
+                if beep_on and not beep_triggered: play_beep("FIRE"); beep_triggered=True
+            else:
+                st.error(f"❌ NO ENTRY - {3 - sum([b1,b2,b3])} Batti RED hai - WAIT KAR")
+
 if torture_alerts: st.error(f"🚨 TORTURE ALERT: {', '.join(torture_alerts)}")
 st.divider()
 c1,c2,c3 = st.columns(3)
@@ -215,4 +271,4 @@ with c2:
     if st.button("🔄 Refresh Now"): st.rerun()
 with c3:
     if st.button("🗑️ Clear Torture History"): st.session_state.price_history = {}; st.success("Cleared!")
-st.caption(f"Update: {datetime.now().strftime('%H:%M:%S')} | V18 MAKHAN - AutoRefresh {'ON' if auto_refresh else 'OFF'}")
+st.caption(f"Update: {datetime.now().strftime('%H:%M:%S')} | V18 MAKHAN - AutoRefresh {'ON' if auto_refresh else 'OFF'} + 3 Batti")
